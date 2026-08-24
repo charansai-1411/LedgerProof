@@ -1,0 +1,2 @@
+# Runtime dependencies. Install with: pip install -r requirements.txt
+PyYAML>=6.0

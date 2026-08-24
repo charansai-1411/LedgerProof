@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ledgerproof"
+version = "0.1.0"
+description = "Merchant settlement reconciliation engine — deterministic matching + tool-using exception agent (Razorpay Buildathon, Track 4)."
+requires-python = ">=3.11"
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["ledgerproof*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

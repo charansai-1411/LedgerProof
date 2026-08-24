@@ -1,0 +1,43 @@
+# Synthetic data generator configuration. Seeded + reproducible.
+# Held-out set: run with a different --seed and an unseen break mix.
+
+seed: 42
+run_name: dev
+merchant_id: mrc_demo
+
+n_payments: 5000
+n_cycles: 25                   # daily settlement cycles
+settlement_delay_days: 2       # T+2
+base_date: "2026-08-01"
+
+method_mix:                    # must sum to 1.0
+  upi: 0.55
+  card: 0.30
+  netbanking: 0.10
+  wallet: 0.05
+
+refund_rate: 0.08              # fraction of payments with a refund
+
+# --- PAYMENT-level exceptions (fractions of the payment count) ---
+# ~6% agent-worthy residue (NOT 15%) — a credible engine clears ~94%.
+# Knob: dial UP for a dense demo, keep the realistic headline metric on the low default.
+exception_rate: 0.06
+
+# Break mix — fractions of the payment-level residue (must sum to ~1.0).
+breaks:
+  compound_variance: 0.35      # PARTIAL_PAYMENT — refund not booked in ledger
+  timing_in_transit: 0.45      # captured, not yet settled (in-transit vs missing)
+  duplicate:         0.05      # same txn twice in a source
+  unexplained:       0.15      # honest human-only residue (extra bank credits)
+
+# --- SETTLEMENT/CREDIT-level exception (the hero) ---
+# Bank credits ~= number of settlements (one per payout), a much smaller population than
+# payments, so the hero rate is a fraction of SETTLEMENTS, not of payments.
+seam_b_match_rate: 0.25        # * hero — ~25% of payouts are hard Seam-B matches; ~75% clean
+
+# Seam-B structural mess (authentic — never "we deleted the join key")
+seam_b_mess:
+  utr_garbled_rate: 0.35       # UTR partially corrupted in the bank narration
+  utr_missing_rate: 0.10       # narration lacks a clean UTR
+  same_day_collision_rate: 0.40 # multiple settlements share a value_date
+  date_drift_days: [0, 1, 2]   # credit value_date vs settlement created_at

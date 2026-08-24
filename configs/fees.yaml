@@ -1,0 +1,16 @@
+# Fee / tax / reserve configuration — finance-team-owned.
+# The generator AND the deterministic engine read this same file: fees are not hardcoded,
+# they are policy. Rates are plausibly-real for Indian payments (shape + relative ordering
+# matter, not exact basis points). All money is integer paise.
+
+gst_rate_bps: 1800            # 18% GST, applied to the MDR fee
+
+methods:
+  upi:        { mdr_bps: 0,   flat_paise: 0 }      # ~0% — NO fee gap (UPI-zero-fee trap)
+  card:       { mdr_bps: 200, flat_paise: 0 }      # ~2%
+  netbanking: { mdr_bps: 0,   flat_paise: 1000 }   # flat Rs 10
+  wallet:     { mdr_bps: 150, flat_paise: 0 }      # ~1.5%
+
+reserve:
+  rate_bps: 500                # 5% rolling reserve, hold-only in v1
+  applies_to: [card]           # per-merchant policy — deliberately narrow

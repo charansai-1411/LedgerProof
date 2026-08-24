@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# Generated data (reproducible from a seed — never commit)
+data/
+
+# Secrets — never commit keys
+.env
+*.local.yaml
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
