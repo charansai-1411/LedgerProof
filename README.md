@@ -2,6 +2,11 @@
 
 *Razorpay Buildathon · Track 4 (AI Finance Controller)*
 
+Track 4 lists four *example directions* — pick one. LedgerProof goes **deep on Multi-source
+reconciliation** (the core), and adds two that reuse the same engine and data: a **Settlement Q&A
+agent** and a **Tax-line matcher**. (Forward cash forecasting is deliberately out — it's prediction,
+not verification, and the brief's "why now" is that *verification* is the bottleneck.)
+
 > **Deterministic code proves the books; a tool-using AI agent investigates only what the code
 > cannot match, and no resolution is written until the code re-verifies the agent's finding.**
 
@@ -156,7 +161,23 @@ A Python-only single-page dashboard (no npm/build step) over the live recon pipe
 - [x] Honest metrics harness on the held-out set — **combined false-match rate 0.0** across 4,745 asserted reconciliations
 - [x] Dashboard — FastAPI-served single page: summary · exception queue · governor controls · source-of-truth
 - [x] Resolved-pattern cache — verifier-gated; **97% fewer agent (LLM) calls, 0 false matches**
+- [x] Settlement Q&A agent — natural-language questions over the reconciled data *(RuleQA + Gemini, verified live)*
+- [x] Tax-line matcher — GST-on-MDR reconciliation, per method; **18.00% effective rate, 0 discrepancies**
 - [ ] *Bonus:* Cloud Run deploy
+
+## Settlement Q&A agent + Tax-line matcher (additional Track-4 directions)
+
+```bash
+python -m ledgerproof.qa  --data data/heldout "how much GST did we pay? which credits are unexplained?"
+python -m ledgerproof.qa  --data data/heldout --model gemini "why was bank_xxxx opened?"   # Gemini agent
+python -m ledgerproof.tax --data data/heldout
+```
+
+The **Q&A agent** answers natural-language questions over the same reconciled results and audit
+trail — match rate, MDR/GST totals, why a credit was opened, what's in the human queue — with a
+deterministic keyword router (no API) or a Gemini function-calling agent. The **tax-line matcher**
+independently re-derives GST-on-MDR against policy per transaction and aggregates by method (UPI
+carries no MDR, so no GST). Both are also surfaced as panels on the dashboard.
 
 ## Resolved-pattern cache (Item #6, stretch)
 

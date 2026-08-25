@@ -63,4 +63,12 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def samples() -> dict:
         return {"payment_ids": svc.sample_payment_ids()}
 
+    @app.get("/api/tax")
+    def tax() -> dict:
+        return svc.tax_report()
+
+    @app.get("/api/qa")
+    def qa(q: str) -> dict:
+        return svc.ask(q)
+
     return app

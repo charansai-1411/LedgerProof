@@ -133,6 +133,19 @@
     <button class="apply" id="g-apply">Apply policy</button>
   </div>
 
+  <h2>Ask — settlement Q&amp;A</h2>
+  <div class="panel">
+    <div class="sot-input">
+      <input id="qa-q" placeholder="e.g. how much GST did we pay? which credits are unexplained?" style="width:min(520px,100%)" />
+      <button class="apply" id="qa-go">Ask</button>
+    </div>
+    <div id="qa-a" class="narrative" style="display:none"></div>
+    <div id="qa-suggest" class="muted" style="margin-top:9px"></div>
+  </div>
+
+  <h2>Tax-line matcher — GST-on-MDR</h2>
+  <div id="tax"></div>
+
   <h2>Exception queue — bank credit → settlement</h2>
   <div class="queue" id="queue"></div>
 
@@ -261,8 +274,35 @@ async function lookup(pid){
 document.getElementById("sot-go").addEventListener("click", ()=> lookup(document.getElementById("sot-id").value.trim()));
 document.getElementById("sot-id").addEventListener("keydown", e=>{ if(e.key==="Enter") lookup(e.target.value.trim()); });
 
+async function loadTax(){
+  const t = await jget("/api/tax");
+  const rows = Object.entries(t.by_method).sort().map(([m,v])=>
+    `<div class="kv"><span class="k">${m}</span><span class="v">MDR ${rs(v.mdr)} · GST ${rs(v.gst)} · ${(v.effective_rate_bps/100).toFixed(2)}%</span></div>`).join("");
+  document.getElementById("tax").innerHTML = `<div class="view">
+    <h4>GST-on-MDR reconciled ${t.gst_reconciles ? "✓" : "— review"}</h4>
+    <div class="kv"><span class="k">total MDR</span><span class="v">${rs(t.total_mdr)}</span></div>
+    <div class="kv"><span class="k">total GST (reported = expected)</span><span class="v">${rs(t.total_gst_reported)}</span></div>
+    <div class="kv"><span class="k">effective rate</span><span class="v">${(t.effective_rate_bps/100).toFixed(2)}%</span></div>
+    <div class="kv"><span class="k">discrepancies</span><span class="v">${t.discrepancy_count}</span></div>
+    ${rows}</div>`;
+}
+
+async function askQA(q){
+  q = (q || document.getElementById("qa-q").value).trim(); if(!q) return;
+  document.getElementById("qa-q").value = q;
+  const box = document.getElementById("qa-a"); box.style.display = "block"; box.textContent = "…";
+  try { box.textContent = (await jget("/api/qa?q=" + encodeURIComponent(q))).answer; }
+  catch(e){ box.textContent = "error: " + e; }
+}
+document.getElementById("qa-go").addEventListener("click", ()=> askQA());
+document.getElementById("qa-q").addEventListener("keydown", e=>{ if(e.key==="Enter") askQA(); });
+
 async function init(){
-  await Promise.all([loadReport(), loadQueue(), loadPolicy()]);
+  await Promise.all([loadReport(), loadQueue(), loadPolicy(), loadTax()]);
+  const suggestions = ["Give me a summary", "How much GST did we pay?", "Which credits are unexplained?", "Do we have any false matches?"];
+  document.getElementById("qa-suggest").innerHTML = "try: " +
+    suggestions.map(s=>`<a href="#" data-q="${s}">${s}</a>`).join(" · ");
+  document.querySelectorAll("#qa-suggest a").forEach(a=> a.addEventListener("click", e=>{ e.preventDefault(); askQA(a.dataset.q); }));
   const s = await jget("/api/samples");
   const box = document.getElementById("sot-samples");
   box.innerHTML = "try: " + s.payment_ids.slice(0,4).map(id=>`<a href="#" data-id="${id}">${id}</a>`).join(" · ");

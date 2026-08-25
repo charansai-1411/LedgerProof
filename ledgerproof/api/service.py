@@ -8,7 +8,10 @@ from pathlib import Path
 from ..agent.heuristic import HeuristicAgentModel
 from ..agent.loader import load_seam_b
 from ..engine.loader import load_sources
+from ..generator.config import FeeConfig
 from ..metrics.report import build_report
+from ..qa.service import QAContext, RuleQA
+from ..tax.matcher import match_tax
 from ..verifier.config import GovernorConfig
 from ..verifier.pipeline import run_pipeline
 
@@ -20,6 +23,7 @@ class ReconService:
         self.model = HeuristicAgentModel()
 
         eng = load_sources(self.data_dir)
+        self._eng_sources = eng
         sb = load_seam_b(self.data_dir)
         self._pay = {p.payment_id: p for p in eng.payments}
         self._report_by_pid = {r.payment_id: r for r in eng.report_rows}
@@ -75,3 +79,10 @@ class ReconService:
 
     def sample_payment_ids(self, n: int = 8) -> list[str]:
         return list(self._pay.keys())[:n]
+
+    def tax_report(self) -> dict:
+        return match_tax(self._eng_sources, FeeConfig.load()).to_dict()
+
+    def ask(self, question: str) -> dict:
+        # a fresh QAContext reflects the current policy (auto-resolve toggles etc.)
+        return RuleQA(QAContext(self.data_dir, self.policy)).ask(question)
