@@ -3,314 +3,432 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>LedgerProof — Settlement Reconciliation</title>
+<title>LedgerProof</title>
 <style>
-  :root {
-    --bg: #0b0e14; --panel: #131824; --panel2: #1a2130; --line: #232c3d;
-    --ink: #e7ecf3; --muted: #8b97ab; --faint: #5d6a80;
-    --green: #37d39a; --green-bg: #10261f; --amber: #f0b429; --amber-bg: #2a2410;
-    --blue: #5aa2ff; --red: #ff6b6b; --accent: #7c5cff;
-    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  :root{
+    --bg:#f6f7f9; --surface:#ffffff; --surface-2:#fbfbfd; --border:#e7e9ee; --border-2:#eef0f4;
+    --ink:#12141a; --muted:#6b7280; --faint:#9aa1ad;
+    --accent:#4f46e5; --accent-weak:#eef0fe; --accent-ink:#4338ca;
+    --green:#0f9d6b; --green-weak:#e7f6ef; --amber:#b7791f; --amber-weak:#fdf4e3;
+    --red:#dc2626; --shadow:0 1px 2px rgba(18,20,26,.04), 0 6px 20px rgba(18,20,26,.05);
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+    --sans:-apple-system,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+    --r:14px;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
-         font-size: 14px; line-height: 1.5; }
-  a { color: var(--blue); }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 80px; }
-  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
-  header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
-  header .badge { font-family: var(--mono); font-size: 12px; color: var(--muted);
-                  background: var(--panel2); border: 1px solid var(--line); padding: 3px 9px; border-radius: 20px; }
-  .tagline { color: var(--muted); margin: 2px 0 22px; max-width: 760px; }
-  .tagline b { color: var(--ink); font-weight: 600; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint);
-       margin: 30px 0 12px; font-weight: 600; }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;
+       -webkit-font-smoothing:antialiased}
+  a{color:var(--accent-ink);text-decoration:none} a:hover{text-decoration:underline}
+  .app{display:flex;min-height:100vh}
 
-  /* KPI cards */
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-  .kpi .label { color: var(--muted); font-size: 12px; }
-  .kpi .val { font-family: var(--mono); font-size: 25px; margin-top: 6px; letter-spacing: -.5px; }
-  .kpi .sub { color: var(--faint); font-size: 11px; margin-top: 3px; }
-  .kpi.cardinal { border-color: var(--green); background: linear-gradient(180deg, var(--green-bg), var(--panel)); }
-  .kpi.cardinal .val { color: var(--green); }
+  /* sidebar */
+  .side{width:244px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+        display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:10px;padding:20px 20px 16px}
+  .brand .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#4338ca);
+        display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+  .brand b{font-size:16px;letter-spacing:-.2px}
+  nav{padding:8px 12px;display:flex;flex-direction:column;gap:2px;flex:1}
+  .nav-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:10px;color:var(--muted);
+        cursor:pointer;font-weight:500;user-select:none}
+  .nav-item:hover{background:var(--surface-2);color:var(--ink)}
+  .nav-item.active{background:var(--accent-weak);color:var(--accent-ink)}
+  .nav-item .ico{width:18px;text-align:center;font-size:15px}
+  .side .foot{padding:14px;border-top:1px solid var(--border)}
+  .ds-chip{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px}
+  .ds-chip .k{font-size:11px;color:var(--faint)} .ds-chip .v{font-family:var(--mono);font-size:12.5px}
 
-  /* governor panel */
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
-  .gov { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; }
-  .gov .ctl { display: flex; flex-direction: column; gap: 5px; }
-  .gov label { color: var(--muted); font-size: 12px; }
-  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--mono); }
-  .switch input { appearance: none; width: 38px; height: 21px; background: var(--panel2); border: 1px solid var(--line);
-                  border-radius: 20px; position: relative; cursor: pointer; transition: .15s; }
-  .switch input:checked { background: var(--green-bg); border-color: var(--green); }
-  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px;
-                         border-radius: 50%; background: var(--faint); transition: .15s; }
-  .switch input:checked::after { left: 19px; background: var(--green); }
-  input[type=range] { width: 150px; accent-color: var(--accent); }
-  .chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 8px;
-          border: 1px solid var(--line); background: var(--panel2); color: var(--muted); cursor: pointer; }
-  .chip.on { border-color: var(--accent); color: var(--ink); background: #1c1832; }
-  button.apply { font: inherit; font-size: 13px; color: #0b0e14; background: var(--accent); border: 0;
-                 padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-  button.apply:hover { filter: brightness(1.08); }
+  /* main */
+  main{flex:1;min-width:0}
+  .topbar{position:sticky;top:0;z-index:5;background:rgba(246,247,249,.86);backdrop-filter:blur(8px);
+        border-bottom:1px solid var(--border);padding:14px 30px;display:flex;align-items:center;gap:14px}
+  .topbar h1{font-size:17px;margin:0;letter-spacing:-.2px}
+  .topbar .spacer{flex:1}
+  .tag{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--surface);
+        border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+  .tag.dot::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+        background:var(--green);margin-right:7px;vertical-align:middle}
+  .content{padding:26px 30px 70px;max-width:1080px}
+  .section{display:none} .section.show{display:block;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .lead{color:var(--muted);margin:0 0 22px;max-width:660px}
+  h2.sec{font-size:20px;margin:0 0 4px;letter-spacing:-.3px}
+  h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin:26px 0 12px}
 
-  /* exception queue */
-  .queue { display: flex; flex-direction: column; gap: 7px; }
-  .row { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .row > .head { display: grid; grid-template-columns: 150px 1fr 90px 130px 20px; gap: 12px; align-items: center;
-                 padding: 11px 14px; cursor: pointer; }
-  .row > .head:hover { background: var(--panel2); }
-  .id { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
-  .outcome { font-family: var(--mono); font-size: 13px; }
-  .outcome .match { color: var(--green); }
-  .outcome .open { color: var(--amber); }
-  .conf { font-family: var(--mono); font-size: 13px; color: var(--ink); text-align: right; }
-  .pill { justify-self: start; font-size: 11.5px; font-family: var(--mono); padding: 3px 10px; border-radius: 20px;
-          border: 1px solid; white-space: nowrap; }
-  .pill.auto { color: var(--green); border-color: #1f4a3a; background: var(--green-bg); }
-  .pill.human { color: var(--amber); border-color: #4a3f16; background: var(--amber-bg); }
-  .caret { color: var(--faint); transition: .15s; text-align: center; }
-  .row.open .caret { transform: rotate(90deg); }
-  .detail { display: none; border-top: 1px solid var(--line); padding: 14px 16px; background: #0f131d; }
-  .row.open .detail { display: block; }
-  .detail .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  @media (max-width: 760px) { .detail .grid { grid-template-columns: 1fr; } }
-  .detail h4 { margin: 0 0 7px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
-  .detail ul { margin: 0; padding-left: 16px; }
-  .detail li { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 3px 0; }
-  .checks { display: flex; flex-direction: column; gap: 4px; }
-  .check { font-family: var(--mono); font-size: 12px; }
-  .check .ok { color: var(--green); } .check .no { color: var(--red); }
-  .narrative { margin-top: 12px; padding: 11px 13px; background: var(--panel2); border-left: 3px solid var(--accent);
-               border-radius: 6px; color: var(--ink); font-size: 13px; }
-  .why { margin-top: 10px; font-size: 12px; color: var(--muted); }
-  .why b { color: var(--ink); }
+  .banner{background:var(--amber-weak);border:1px solid #f0e0b8;color:#8a5a00;border-radius:10px;
+        padding:10px 14px;margin-bottom:18px;font-size:13px;display:none}
+  .banner.show{display:block}
 
-  /* source of truth */
-  .sot-input { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-  .sot-input input { font-family: var(--mono); font-size: 13px; background: var(--panel2); border: 1px solid var(--line);
-                     color: var(--ink); border-radius: 8px; padding: 8px 11px; width: 220px; }
-  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  @media (max-width: 820px) { .three { grid-template-columns: 1fr; } }
-  .view { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; }
-  .view h4 { margin: 0 0 9px; font-size: 12px; color: var(--blue); }
-  .kv { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 12px;
-        padding: 3px 0; border-bottom: 1px dashed var(--line); }
-  .kv:last-child { border-bottom: 0; }
-  .kv .k { color: var(--faint); } .kv .v { color: var(--ink); }
-  .muted { color: var(--muted); } .err { color: var(--red); }
+  /* cards / kpis */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:14px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)}
+  .kpi{padding:16px 18px}
+  .kpi .label{color:var(--muted);font-size:12.5px}
+  .kpi .val{font-size:27px;font-weight:650;letter-spacing:-.6px;margin-top:7px;font-variant-numeric:tabular-nums}
+  .kpi .sub{color:var(--faint);font-size:11.5px;margin-top:4px}
+  .kpi.hero{background:linear-gradient(180deg,var(--green-weak),var(--surface));border-color:#cdeadd}
+  .kpi.hero .val{color:var(--green)}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+        box-shadow:var(--shadow);padding:18px 20px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.row2{grid-template-columns:1fr}}
+
+  /* governor */
+  .gov{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+  .gov .ctl{display:flex;flex-direction:column;gap:6px}
+  .gov label{color:var(--muted);font-size:12px}
+  .switch{display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-family:var(--mono);font-size:12.5px}
+  .switch input{appearance:none;width:40px;height:22px;background:#e5e7eb;border-radius:20px;position:relative;
+        cursor:pointer;transition:.15s;flex-shrink:0}
+  .switch input:checked{background:var(--green)}
+  .switch input::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+        background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .switch input:checked::after{left:20px}
+  input[type=range]{accent-color:var(--accent);width:160px}
+  .chip{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:8px;border:1px solid var(--border);
+        background:var(--surface-2);color:var(--muted);cursor:pointer}
+  .chip.on{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-weak)}
+  .btn{font:inherit;font-size:13px;font-weight:600;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid transparent}
+  .btn.primary{background:var(--accent);color:#fff} .btn.primary:hover{background:#4338ca}
+  .btn.ghost{background:var(--surface);border-color:var(--border);color:var(--ink)} .btn.ghost:hover{background:var(--surface-2)}
+
+  /* q&a */
+  .ask{display:flex;gap:10px;flex-wrap:wrap}
+  .ask input,.lookup input{font-size:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+        padding:11px 14px;flex:1;min-width:220px;color:var(--ink)}
+  .ask input:focus,.lookup input:focus{outline:2px solid var(--accent-weak);border-color:var(--accent)}
+  .answer{margin-top:16px;background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent);
+        border-radius:10px;padding:14px 16px;font-size:14.5px;display:none}
+  .suggest{margin-top:12px;color:var(--muted);font-size:12.5px;display:flex;gap:8px;flex-wrap:wrap}
+  .suggest a{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 12px;color:var(--muted)}
+  .suggest a:hover{border-color:var(--accent);color:var(--accent-ink);text-decoration:none}
+
+  /* queue */
+  .queue{display:flex;flex-direction:column;gap:8px}
+  .qrow{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  .qhead{display:grid;grid-template-columns:150px 1fr 74px 128px 18px;gap:12px;align-items:center;padding:13px 16px;cursor:pointer}
+  .qhead:hover{background:var(--surface-2)}
+  .id{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+  .out .match{color:var(--green);font-family:var(--mono);font-size:13px}
+  .out .open{color:var(--amber);font-family:var(--mono);font-size:13px}
+  .conf{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+  .pill{justify-self:start;font-size:11.5px;font-family:var(--mono);padding:4px 11px;border-radius:20px;border:1px solid}
+  .pill.auto{color:var(--green);border-color:#bfe6d3;background:var(--green-weak)}
+  .pill.human{color:var(--amber);border-color:#eddcb3;background:var(--amber-weak)}
+  .caret{color:var(--faint);text-align:center;transition:.15s}
+  .qrow.open .caret{transform:rotate(90deg)}
+  .detail{display:none;border-top:1px solid var(--border-2);padding:16px;background:var(--surface-2)}
+  .qrow.open .detail{display:block}
+  .detail .g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:760px){.detail .g2{grid-template-columns:1fr}}
+  .detail h5{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint)}
+  .detail ul{margin:0;padding-left:16px} .detail li{font-family:var(--mono);font-size:12px;color:var(--muted);margin:3px 0}
+  .check{font-family:var(--mono);font-size:12px} .check .ok{color:var(--green)} .check .no{color:var(--red)}
+  .narr{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:13.5px}
+  .why{margin-top:10px;font-size:12.5px;color:var(--muted)} .why b{color:var(--ink)}
+
+  /* tables */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--border-2)}
+  th{color:var(--faint);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border-2)}
+  .kv:last-child{border:0}.kv .k{color:var(--faint)}.kv .v{font-family:var(--mono)}
+
+  /* import */
+  .ds-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .ds-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;
+        box-shadow:var(--shadow)}
+  .ds-card:hover{border-color:var(--accent)}
+  .ds-card.active{border-color:var(--accent);background:var(--accent-weak)}
+  .ds-card .name{font-weight:650;font-size:15px}
+  .ds-card .meta{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .drop{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  @media(max-width:700px){.drop{grid-template-columns:1fr}}
+  .file{background:var(--surface-2);border:1px dashed var(--border);border-radius:10px;padding:12px 14px}
+  .file .fl{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .file .fname{font-weight:600;font-size:13px} .file .tmpl{font-size:11.5px}
+  .file input[type=file]{margin-top:8px;font-size:12px;width:100%}
+  .file.ok{border-color:var(--green);background:var(--green-weak)}
+  .up-status{margin-top:14px;font-size:13px}
+  .muted{color:var(--muted)} .err{color:var(--red)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>LedgerProof</h1>
-    <span class="badge" id="dataset">loading…</span>
-    <span class="badge" id="policy-badge"></span>
-  </header>
-  <p class="tagline">Deterministic code proves the books; a tool-using agent investigates only what the
-    code cannot match; <b>no resolution is written until the code re-verifies it</b>. Every screen answers
-    “why did the system do this?”</p>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="mark">L</div><b>LedgerProof</b></div>
+    <nav id="nav">
+      <div class="nav-item active" data-sec="overview"><span class="ico">◐</span> Overview</div>
+      <div class="nav-item" data-sec="exceptions"><span class="ico">≣</span> Exceptions</div>
+      <div class="nav-item" data-sec="qa"><span class="ico">✦</span> Q&amp;A agent</div>
+      <div class="nav-item" data-sec="tax"><span class="ico">%</span> Tax</div>
+      <div class="nav-item" data-sec="lookup"><span class="ico">⌕</span> Source of truth</div>
+      <div class="nav-item" data-sec="import"><span class="ico">↥</span> Import data</div>
+    </nav>
+    <div class="foot"><div class="ds-chip"><div class="k">Active dataset</div><div class="v" id="ds-name">—</div></div></div>
+  </aside>
 
-  <div class="kpis" id="kpis"></div>
-
-  <h2>Governor — finance-team controls</h2>
-  <div class="panel gov" id="gov">
-    <div class="ctl">
-      <label>Auto-resolve</label>
-      <span class="switch"><input type="checkbox" id="g-enabled"><span class="muted" id="g-enabled-t">off</span></span>
+  <main>
+    <div class="topbar">
+      <h1 id="page-title">Overview</h1>
+      <div class="spacer"></div>
+      <span class="tag dot" id="tag-policy">auto-resolve: off</span>
+      <span class="tag" id="tag-ds">—</span>
     </div>
-    <div class="ctl">
-      <label>Min confidence: <span id="g-conf-v" class="mono">0.95</span></label>
-      <input type="range" id="g-conf" min="0.5" max="1" step="0.01" value="0.95">
+    <div class="content">
+      <div class="banner" id="ungraded-banner">Uploaded data — no ground-truth key, so accuracy-vs-truth
+        metrics are not available. The operational reconciliation (matches, exceptions, tax, Q&amp;A) still runs.</div>
+
+      <!-- OVERVIEW -->
+      <section class="section show" id="sec-overview">
+        <h2 class="sec">Reconciliation overview</h2>
+        <p class="lead">Deterministic code proves the books; the agent investigates only what code can't match;
+          nothing is written until the code re-verifies it.</p>
+        <div class="kpis" id="kpis"></div>
+        <h3>Governor — finance-team controls</h3>
+        <div class="panel gov" id="gov">
+          <div class="ctl"><label>Auto-resolve</label>
+            <span class="switch"><input type="checkbox" id="g-enabled"><span class="muted" id="g-enabled-t">off</span></span></div>
+          <div class="ctl"><label>Min confidence: <span id="g-conf-v" style="font-family:var(--mono)">0.95</span></label>
+            <input type="range" id="g-conf" min="0.5" max="1" step="0.01" value="0.95"></div>
+          <div class="ctl"><label>Allowlist</label>
+            <span class="chip" id="g-allow">bank_settlement_match</span></div>
+          <button class="btn primary" id="g-apply">Apply policy</button>
+        </div>
+      </section>
+
+      <!-- EXCEPTIONS -->
+      <section class="section" id="sec-exceptions">
+        <h2 class="sec">Exception queue</h2>
+        <p class="lead">Every bank credit → settlement decision. Expand any row to see why: agent evidence,
+          the verifier's re-derivation in code, the governor's call, and the narrative.</p>
+        <div class="queue" id="queue"></div>
+      </section>
+
+      <!-- Q&A -->
+      <section class="section" id="sec-qa">
+        <h2 class="sec">Settlement Q&amp;A agent</h2>
+        <p class="lead">Ask about this run in plain English — match rate, MDR/GST totals, why a credit was opened.</p>
+        <div class="panel">
+          <div class="ask">
+            <input id="qa-q" placeholder="e.g. how much GST did we pay? which credits are unexplained?">
+            <button class="btn primary" id="qa-go">Ask</button>
+          </div>
+          <div class="answer" id="qa-a"></div>
+          <div class="suggest" id="qa-suggest"></div>
+        </div>
+      </section>
+
+      <!-- TAX -->
+      <section class="section" id="sec-tax">
+        <h2 class="sec">Tax-line matcher</h2>
+        <p class="lead">GST-on-MDR reconciled independently against policy, per transaction and per method.</p>
+        <div id="tax"></div>
+      </section>
+
+      <!-- LOOKUP -->
+      <section class="section" id="sec-lookup">
+        <h2 class="sec">Source of truth</h2>
+        <p class="lead">The three views of one transaction, side by side.</p>
+        <div class="panel">
+          <div class="lookup ask"><input id="sot-id" placeholder="payment_id (pay_…)"><button class="btn primary" id="sot-go">Look up</button></div>
+          <div class="suggest" id="sot-samples"></div>
+        </div>
+        <div class="row2" id="sot" style="margin-top:16px"></div>
+      </section>
+
+      <!-- IMPORT -->
+      <section class="section" id="sec-import">
+        <h2 class="sec">Import data</h2>
+        <p class="lead">Reconcile a sample dataset, or upload your own settlement sources. Uploaded runs have
+          no ground-truth key, so they show the operational reconciliation without accuracy-vs-truth.</p>
+        <h3>Sample datasets</h3>
+        <div class="ds-grid" id="ds-grid"></div>
+        <h3>Upload your sources (CSV)</h3>
+        <div class="panel">
+          <div class="muted" style="font-size:12.5px">Five files, each with the required columns.
+            <a href="#" id="dl-all">Column templates</a> · empty cells allowed for nullable fields.</div>
+          <div class="drop" id="drop"></div>
+          <div style="margin-top:14px"><button class="btn primary" id="up-go">Upload &amp; reconcile</button>
+            <span class="up-status" id="up-status"></span></div>
+        </div>
+      </section>
     </div>
-    <div class="ctl">
-      <label>Allowlist</label>
-      <span class="chip" id="g-allow" data-cat="bank_settlement_match">bank_settlement_match</span>
-    </div>
-    <button class="apply" id="g-apply">Apply policy</button>
-  </div>
-
-  <h2>Ask — settlement Q&amp;A</h2>
-  <div class="panel">
-    <div class="sot-input">
-      <input id="qa-q" placeholder="e.g. how much GST did we pay? which credits are unexplained?" style="width:min(520px,100%)" />
-      <button class="apply" id="qa-go">Ask</button>
-    </div>
-    <div id="qa-a" class="narrative" style="display:none"></div>
-    <div id="qa-suggest" class="muted" style="margin-top:9px"></div>
-  </div>
-
-  <h2>Tax-line matcher — GST-on-MDR</h2>
-  <div id="tax"></div>
-
-  <h2>Exception queue — bank credit → settlement</h2>
-  <div class="queue" id="queue"></div>
-
-  <h2>Source of truth — three views of one transaction</h2>
-  <div class="sot-input">
-    <input id="sot-id" placeholder="payment_id (pay_…)" />
-    <button class="apply" id="sot-go">Look up</button>
-    <span id="sot-samples" class="muted"></span>
-  </div>
-  <div class="three" id="sot"></div>
+  </main>
 </div>
 
 <script>
-const rs = p => "₹" + (p/100).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2});
-const pct = x => (x*100).toFixed(1) + "%";
-const el = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstChild; };
-async function jget(u){ const r = await fetch(u); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+const rs = p => p==null ? "—" : "₹" + (p/100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct = x => x==null ? "n/a" : (x*100).toFixed(1)+"%";
+const el = h => {const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild;};
+async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.statusText);return r.json();}
+const SOURCES = ["pg_payments","settlements","settlement_report","bank_statement","internal_ledger"];
+const loaded = {exceptions:false, tax:false};
 
-let POLICY = {enabled:false, min_confidence:0.95, allowlist:[]};
+/* ---------- navigation ---------- */
+const titles = {overview:"Overview",exceptions:"Exceptions",qa:"Q&A agent",tax:"Tax",lookup:"Source of truth",import:"Import data"};
+function showSection(sec){
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n.dataset.sec===sec));
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("show"));
+  document.getElementById("sec-"+sec).classList.add("show");
+  document.getElementById("page-title").textContent = titles[sec];
+  if(sec==="exceptions" && !loaded.exceptions){ loadQueue(); loaded.exceptions=true; }
+  if(sec==="tax" && !loaded.tax){ loadTax(); loaded.tax=true; }
+}
+document.querySelectorAll(".nav-item").forEach(n=> n.addEventListener("click", ()=> showSection(n.dataset.sec)));
 
-async function loadReport(){
-  const c = await jget("/api/report");
-  document.getElementById("dataset").textContent = "dataset: " + c.dataset + " · seed " + c.seed;
-  const a=c.seam_a_payments, b=c.seam_b_credits, g=c.governance, card=c.cardinal, t=c.throughput;
-  const fmZero = card.combined_false_match_rate === 0;
-  document.getElementById("kpis").innerHTML = "";
-  const kpis = [
-    {cls:"kpi cardinal", label:"Combined false-match rate", val: card.combined_false_match_rate,
-     sub:`${card.acted_false_matches} wrong of ${card.acted_matches} asserted · ${fmZero?"the cardinal sin, avoided":"REVIEW"}`},
-    {label:"Seam A · payments", val: pct(a.match_rate), sub:`${a.matched}/${a.total} matched · ${a.exceptions} exceptions`},
-    {label:"Seam B · bank credits", val:`${b.correct_matches}/${b.matchable}`, sub:`hero ${b.hero.correct}/${b.hero.total} · ${b.unexplained_correctly_opened} opened`},
-    {label:"Auto-resolved", val: g.auto_resolved, sub:`${g.verified} verified · ${g.wrong_auto_resolutions} wrong`},
-    {label:"Human queue", val: g.human_review, sub:`precision ${pct(g.human_queue_precision)}`},
-    {label:"Throughput", val: Math.round(t.records_per_second).toLocaleString("en-IN"), sub:`records / second`},
+/* ---------- overview ---------- */
+function renderKpis(c){
+  const a=c.seam_a_payments,b=c.seam_b_credits,g=c.governance,card=c.cardinal,t=c.throughput;
+  const items=[
+    {cls:"kpi hero",label:"Combined false-match rate",val:card.combined_false_match_rate==null?"n/a":card.combined_false_match_rate,
+      sub:card.combined_false_match_rate==null?"needs ground truth":`0 wrong of ${card.acted_matches} asserted`},
+    {label:"Seam A · payments",val:pct(a.match_rate),sub:`${a.matched.toLocaleString()}/${a.total.toLocaleString()} · ${a.exceptions} exceptions`},
+    {label:"Seam B · credits",val:`${b.correct_matches}${b.matchable!=null?"/"+b.matchable:""}`,sub:b.hero.total!=null?`hero ${b.hero.correct}/${b.hero.total}`:`${b.unexplained_correctly_opened} opened`},
+    {label:"Auto-resolved",val:g.auto_resolved,sub:`${g.verified} verified`},
+    {label:"Human queue",val:g.human_review,sub:g.human_queue_precision!=null?`precision ${pct(g.human_queue_precision)}`:"routed to review"},
+    {label:"Throughput",val:Math.round(t.records_per_second).toLocaleString("en-IN"),sub:"records / second"},
   ];
-  for(const k of kpis){
-    document.getElementById("kpis").append(el(
-      `<div class="${k.cls||"kpi"}"><div class="label">${k.label}</div><div class="val">${k.val}</div><div class="sub">${k.sub}</div></div>`));
-  }
-  document.getElementById("policy-badge").textContent =
-    "auto-resolve: " + (c.policy.auto_resolve_enabled ? "ON" : "off") + " · ≥" + c.policy.min_confidence;
+  document.getElementById("kpis").innerHTML="";
+  items.forEach(k=>document.getElementById("kpis").append(el(
+    `<div class="card ${k.cls||'kpi'} kpi"><div class="label">${k.label}</div><div class="val">${k.val}</div><div class="sub">${k.sub}</div></div>`)));
 }
 
-function checkRow(name, ok){ return `<div class="check"><span class="${ok?"ok":"no"}">${ok?"✓":"✗"}</span> ${name}</div>`; }
-
-async function loadQueue(){
-  const rows = await jget("/api/exceptions");
-  const q = document.getElementById("queue"); q.innerHTML = "";
-  for(const r of rows){
-    const matched = r.matched_settlement_id;
-    const dec = r.governor_decision;
-    const v = r.verification;
-    const outcome = matched
-      ? `<span class="match">→ ${matched}</span>`
-      : `<span class="open">opened (unexplained)</span>`;
-    const pill = dec === "auto_resolved" ? `<span class="pill auto">auto-resolved</span>`
-                                         : `<span class="pill human">human review</span>`;
-    const checks = Object.entries(v.checks||{}).map(([k,val])=>checkRow(k,val)).join("") ||
-                   `<div class="muted" style="font-family:var(--mono);font-size:12px">${v.reason}</div>`;
-    const evidence = (r.evidence||[]).map(e=>`<li>${e}</li>`).join("") || `<li class="muted">—</li>`;
-    const row = el(`<div class="row">
-      <div class="head">
-        <span class="id">${r.bank_txn_id}</span>
-        <span class="outcome">${outcome}</span>
-        <span class="conf">${(r.confidence).toFixed(2)}</span>
-        ${pill}
-        <span class="caret">▸</span>
-      </div>
-      <div class="detail">
-        <div class="grid">
-          <div><h4>Evidence (agent investigation)</h4><ul>${evidence}</ul></div>
-          <div><h4>Verifier — re-derived in code</h4><div class="checks">${checks}</div>
-            <div class="why">rederived net: <b>${v.rederived_net!=null?rs(v.rederived_net):"—"}</b></div></div>
-        </div>
-        <div class="narrative">${r.narrative||""}</div>
-        <div class="why">Governor: <b>${dec.replace("_"," ")}</b> — ${r.governor_reason}. Reversible: ${r.reversible}.</div>
-      </div>
-    </div>`);
-    row.querySelector(".head").addEventListener("click", ()=> row.classList.toggle("open"));
-    q.append(row);
-  }
+/* ---------- governor ---------- */
+function renderPolicy(p){
+  document.getElementById("g-enabled").checked=p.enabled;
+  document.getElementById("g-enabled-t").textContent=p.enabled?"on":"off";
+  document.getElementById("g-conf").value=p.min_confidence;
+  document.getElementById("g-conf-v").textContent=Number(p.min_confidence).toFixed(2);
+  document.getElementById("g-allow").classList.toggle("on",p.allowlist.includes("bank_settlement_match"));
+  document.getElementById("tag-policy").textContent="auto-resolve: "+(p.enabled?"on":"off")+" · ≥"+p.min_confidence;
 }
-
-async function loadPolicy(){
-  POLICY = await jget("/api/policy");
-  document.getElementById("g-enabled").checked = POLICY.enabled;
-  document.getElementById("g-enabled-t").textContent = POLICY.enabled ? "on" : "off";
-  document.getElementById("g-conf").value = POLICY.min_confidence;
-  document.getElementById("g-conf-v").textContent = Number(POLICY.min_confidence).toFixed(2);
-  document.getElementById("g-allow").classList.toggle("on", POLICY.allowlist.includes("bank_settlement_match"));
-}
-document.getElementById("g-enabled").addEventListener("change", e=>{
-  document.getElementById("g-enabled-t").textContent = e.target.checked ? "on" : "off"; });
-document.getElementById("g-conf").addEventListener("input", e=>{
-  document.getElementById("g-conf-v").textContent = Number(e.target.value).toFixed(2); });
-document.getElementById("g-allow").addEventListener("click", e=> e.target.classList.toggle("on"));
-document.getElementById("g-apply").addEventListener("click", async ()=>{
-  const body = {
-    enabled: document.getElementById("g-enabled").checked,
-    min_confidence: parseFloat(document.getElementById("g-conf").value),
-    allowlist: document.getElementById("g-allow").classList.contains("on") ? ["bank_settlement_match"] : [],
-  };
-  await fetch("/api/policy", {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(body)});
-  await Promise.all([loadReport(), loadQueue()]);
+document.getElementById("g-enabled").addEventListener("change",e=>document.getElementById("g-enabled-t").textContent=e.target.checked?"on":"off");
+document.getElementById("g-conf").addEventListener("input",e=>document.getElementById("g-conf-v").textContent=Number(e.target.value).toFixed(2));
+document.getElementById("g-allow").addEventListener("click",e=>e.target.classList.toggle("on"));
+document.getElementById("g-apply").addEventListener("click",async()=>{
+  await fetch("/api/policy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+    enabled:document.getElementById("g-enabled").checked,
+    min_confidence:parseFloat(document.getElementById("g-conf").value),
+    allowlist:document.getElementById("g-allow").classList.contains("on")?["bank_settlement_match"]:[]})});
+  loaded.exceptions=false; await refresh(); if(document.getElementById("sec-exceptions").classList.contains("show")){loadQueue();loaded.exceptions=true;}
 });
 
-function view(title, obj){
-  if(!obj) return `<div class="view"><h4>${title}</h4><div class="muted">— none —</div></div>`;
-  const money = new Set(["captured_amount","refund_amount","gross_amount","mdr_fee","gst_on_mdr",
-    "refund_deduction","net_amount","booked_amount","amount","fees","tax","reserve_held","reserve_release"]);
-  const kv = Object.entries(obj).map(([k,val])=>{
-    let d = val; if(val!=null && money.has(k) && typeof val==="number") d = rs(val);
-    return `<div class="kv"><span class="k">${k}</span><span class="v">${d==null?"—":d}</span></div>`;
-  }).join("");
-  return `<div class="view"><h4>${title}</h4>${kv}</div>`;
+/* ---------- exceptions ---------- */
+const chk=(n,ok)=>`<div class="check"><span class="${ok?'ok':'no'}">${ok?'✓':'✗'}</span> ${n}</div>`;
+async function loadQueue(){
+  const rows=await jget("/api/exceptions"); const q=document.getElementById("queue"); q.innerHTML="";
+  rows.forEach(r=>{
+    const out=r.matched_settlement_id?`<span class="match">→ ${r.matched_settlement_id}</span>`:`<span class="open">opened (unexplained)</span>`;
+    const pill=r.governor_decision==="auto_resolved"?`<span class="pill auto">auto-resolved</span>`:`<span class="pill human">human review</span>`;
+    const v=r.verification, checks=Object.entries(v.checks||{}).map(([k,x])=>chk(k,x)).join("")||`<span class="muted" style="font-family:var(--mono);font-size:12px">${v.reason}</span>`;
+    const ev=(r.evidence||[]).map(e=>`<li>${e}</li>`).join("")||`<li class="muted">—</li>`;
+    const row=el(`<div class="qrow"><div class="qhead">
+      <span class="id">${r.bank_txn_id}</span><span class="out">${out}</span>
+      <span class="conf">${r.confidence.toFixed(2)}</span>${pill}<span class="caret">▸</span></div>
+      <div class="detail"><div class="g2">
+        <div><h5>Agent investigation</h5><ul>${ev}</ul></div>
+        <div><h5>Verifier · re-derived in code</h5>${checks}<div class="why">rederived net: <b>${rs(v.rederived_net)}</b></div></div>
+      </div><div class="narr">${r.narrative||""}</div>
+      <div class="why">Governor: <b>${r.governor_decision.replace("_"," ")}</b> — ${r.governor_reason}. Reversible: ${r.reversible}.</div></div>`);
+    row.querySelector(".qhead").addEventListener("click",()=>row.classList.toggle("open"));
+    q.append(row);
+  });
+}
+
+/* ---------- q&a ---------- */
+async function askQA(q){
+  q=(q||document.getElementById("qa-q").value).trim(); if(!q)return;
+  document.getElementById("qa-q").value=q;
+  const box=document.getElementById("qa-a"); box.style.display="block"; box.textContent="…";
+  try{box.textContent=(await jget("/api/qa?q="+encodeURIComponent(q))).answer;}catch(e){box.textContent="error: "+e;}
+}
+document.getElementById("qa-go").addEventListener("click",()=>askQA());
+document.getElementById("qa-q").addEventListener("keydown",e=>{if(e.key==="Enter")askQA();});
+
+/* ---------- tax ---------- */
+async function loadTax(){
+  const t=await jget("/api/tax");
+  const body=Object.entries(t.by_method).sort().map(([m,v])=>
+    `<tr><td>${m}</td><td class="num">${rs(v.mdr)}</td><td class="num">${rs(v.gst)}</td><td class="num">${(v.effective_rate_bps/100).toFixed(2)}%</td><td class="num">${v.count.toLocaleString()}</td></tr>`).join("");
+  document.getElementById("tax").innerHTML=`<div class="kpis" style="margin-bottom:16px">
+    <div class="card kpi"><div class="label">Total MDR</div><div class="val">${rs(t.total_mdr)}</div></div>
+    <div class="card kpi"><div class="label">Total GST</div><div class="val">${rs(t.total_gst_reported)}</div><div class="sub">reported = expected</div></div>
+    <div class="card kpi"><div class="label">Effective rate</div><div class="val">${(t.effective_rate_bps/100).toFixed(2)}%</div></div>
+    <div class="card kpi ${t.gst_reconciles?'hero':''}"><div class="label">Discrepancies</div><div class="val">${t.discrepancy_count}</div><div class="sub">${t.gst_reconciles?'reconciles to policy':'review'}</div></div>
+  </div><div class="panel"><table><thead><tr><th>Method</th><th class="num">MDR</th><th class="num">GST</th><th class="num">Rate</th><th class="num">Txns</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/* ---------- lookup ---------- */
+function view(title,obj){
+  if(!obj)return `<div class="panel"><h5 style="color:var(--accent-ink);margin:0 0 8px">${title}</h5><div class="muted">— none —</div></div>`;
+  const money=new Set(["captured_amount","refund_amount","gross_amount","mdr_fee","gst_on_mdr","refund_deduction","net_amount","booked_amount","amount","fees","tax","reserve_held","reserve_release"]);
+  const kv=Object.entries(obj).map(([k,val])=>{let d=(val!=null&&money.has(k)&&typeof val==="number")?rs(val):(val==null?"—":val);return `<div class="kv"><span class="k">${k}</span><span class="v">${d}</span></div>`;}).join("");
+  return `<div class="panel"><h5 style="color:var(--accent-ink);margin:0 0 8px">${title}</h5>${kv}</div>`;
 }
 async function lookup(pid){
-  const sot = document.getElementById("sot");
-  try{
-    const t = await jget("/api/transaction/" + encodeURIComponent(pid));
-    sot.innerHTML = view("PG capture", t.pg_capture)
-      + view("Settlement report" , t.settlement_report ? {...t.settlement_report, settlement_utr: t.settlement?.utr, settlement_created_at: t.settlement?.created_at} : null)
-      + view("Internal ledger", t.internal_ledger);
-  }catch(e){ sot.innerHTML = `<div class="view err">not found: ${pid}</div>`; }
+  const sot=document.getElementById("sot");
+  try{const t=await jget("/api/transaction/"+encodeURIComponent(pid));
+    sot.innerHTML=view("PG capture",t.pg_capture)+view("Settlement report",t.settlement_report?{...t.settlement_report,settlement_utr:t.settlement?.utr,settlement_created_at:t.settlement?.created_at}:null)+view("Internal ledger",t.internal_ledger);
+  }catch(e){sot.innerHTML=`<div class="panel err">not found: ${pid}</div>`;}
 }
-document.getElementById("sot-go").addEventListener("click", ()=> lookup(document.getElementById("sot-id").value.trim()));
-document.getElementById("sot-id").addEventListener("keydown", e=>{ if(e.key==="Enter") lookup(e.target.value.trim()); });
+document.getElementById("sot-go").addEventListener("click",()=>lookup(document.getElementById("sot-id").value.trim()));
+document.getElementById("sot-id").addEventListener("keydown",e=>{if(e.key==="Enter")lookup(e.target.value.trim());});
 
-async function loadTax(){
-  const t = await jget("/api/tax");
-  const rows = Object.entries(t.by_method).sort().map(([m,v])=>
-    `<div class="kv"><span class="k">${m}</span><span class="v">MDR ${rs(v.mdr)} · GST ${rs(v.gst)} · ${(v.effective_rate_bps/100).toFixed(2)}%</span></div>`).join("");
-  document.getElementById("tax").innerHTML = `<div class="view">
-    <h4>GST-on-MDR reconciled ${t.gst_reconciles ? "✓" : "— review"}</h4>
-    <div class="kv"><span class="k">total MDR</span><span class="v">${rs(t.total_mdr)}</span></div>
-    <div class="kv"><span class="k">total GST (reported = expected)</span><span class="v">${rs(t.total_gst_reported)}</span></div>
-    <div class="kv"><span class="k">effective rate</span><span class="v">${(t.effective_rate_bps/100).toFixed(2)}%</span></div>
-    <div class="kv"><span class="k">discrepancies</span><span class="v">${t.discrepancy_count}</span></div>
-    ${rows}</div>`;
+/* ---------- import ---------- */
+function renderDatasets(ds){
+  const grid=document.getElementById("ds-grid"); grid.innerHTML="";
+  ds.available.forEach(d=>{
+    const active=d.name===ds.current.name;
+    const card=el(`<div class="ds-card ${active?'active':''}"><div class="name">${d.name}</div>
+      <div class="meta">${d.has_ground_truth?"sample · ground truth":"uploaded · no ground truth"}</div></div>`);
+    card.addEventListener("click",async()=>{await fetch("/api/dataset/sample",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:d.name})});await refresh();showSection("overview");});
+    grid.append(card);
+  });
+  const drop=document.getElementById("drop"); if(!drop.dataset.built){
+    SOURCES.forEach(t=>drop.append(el(`<div class="file" id="f-${t}"><div class="fl"><span class="fname">${t}.csv</span>
+      <a class="tmpl" href="/api/template/${t}" download="${t}.csv">template</a></div><input type="file" accept=".csv" data-t="${t}"></div>`)));
+    drop.querySelectorAll("input[type=file]").forEach(i=>i.addEventListener("change",e=>document.getElementById("f-"+e.target.dataset.t).classList.toggle("ok",!!e.target.files.length)));
+    drop.dataset.built="1";
+  }
 }
+document.getElementById("up-go").addEventListener("click",async()=>{
+  const st=document.getElementById("up-status"); const fd=new FormData(); let missing=[];
+  SOURCES.forEach(t=>{const inp=document.querySelector(`input[data-t="${t}"]`);if(inp.files.length)fd.append(t,inp.files[0]);else missing.push(t);});
+  if(missing.length){st.innerHTML=`<span class="err">missing: ${missing.join(", ")}</span>`;return;}
+  st.textContent="uploading & reconciling…";
+  try{const r=await fetch("/api/dataset/upload",{method:"POST",body:fd});const j=await r.json();
+    if(!r.ok){st.innerHTML=`<span class="err">${j.detail}</span>`;return;}
+    st.innerHTML=`<span style="color:var(--green)">✓ imported ${j.name} (${Object.values(j.counts).reduce((a,b)=>a+b,0).toLocaleString()} rows)</span>`;
+    await refresh(); showSection("overview");
+  }catch(e){st.innerHTML=`<span class="err">${e}</span>`;}
+});
+document.getElementById("dl-all").addEventListener("click",e=>{e.preventDefault();SOURCES.forEach(t=>window.open("/api/template/"+t,"_blank"));});
 
-async function askQA(q){
-  q = (q || document.getElementById("qa-q").value).trim(); if(!q) return;
-  document.getElementById("qa-q").value = q;
-  const box = document.getElementById("qa-a"); box.style.display = "block"; box.textContent = "…";
-  try { box.textContent = (await jget("/api/qa?q=" + encodeURIComponent(q))).answer; }
-  catch(e){ box.textContent = "error: " + e; }
+/* ---------- refresh ---------- */
+async function refresh(){
+  const [ds,rep,pol]=await Promise.all([jget("/api/dataset"),jget("/api/report"),jget("/api/policy")]);
+  document.getElementById("ds-name").textContent=ds.current.name;
+  document.getElementById("tag-ds").textContent=ds.current.name+" · "+ds.current.payments.toLocaleString()+" payments";
+  document.getElementById("ungraded-banner").classList.toggle("show",!ds.current.has_ground_truth);
+  renderKpis(rep); renderPolicy(pol); renderDatasets(ds); loaded.exceptions=false; loaded.tax=false;
+  if(document.getElementById("sec-exceptions").classList.contains("show")){loadQueue();loaded.exceptions=true;}
+  if(document.getElementById("sec-tax").classList.contains("show")){loadTax();loaded.tax=true;}
 }
-document.getElementById("qa-go").addEventListener("click", ()=> askQA());
-document.getElementById("qa-q").addEventListener("keydown", e=>{ if(e.key==="Enter") askQA(); });
-
 async function init(){
-  await Promise.all([loadReport(), loadQueue(), loadPolicy(), loadTax()]);
-  const suggestions = ["Give me a summary", "How much GST did we pay?", "Which credits are unexplained?", "Do we have any false matches?"];
-  document.getElementById("qa-suggest").innerHTML = "try: " +
-    suggestions.map(s=>`<a href="#" data-q="${s}">${s}</a>`).join(" · ");
-  document.querySelectorAll("#qa-suggest a").forEach(a=> a.addEventListener("click", e=>{ e.preventDefault(); askQA(a.dataset.q); }));
-  const s = await jget("/api/samples");
-  const box = document.getElementById("sot-samples");
-  box.innerHTML = "try: " + s.payment_ids.slice(0,4).map(id=>`<a href="#" data-id="${id}">${id}</a>`).join(" · ");
-  box.querySelectorAll("a").forEach(a=> a.addEventListener("click", e=>{
-    e.preventDefault(); document.getElementById("sot-id").value = a.dataset.id; lookup(a.dataset.id); }));
-  lookup(s.payment_ids[0]);
+  await refresh();
+  ["Give me a summary","How much GST did we pay?","Which credits are unexplained?","Any false matches?"].forEach(()=>{});
+  const sg=["Give me a summary","How much GST did we pay?","Which credits are unexplained?","Any false matches?"];
+  document.getElementById("qa-suggest").innerHTML=sg.map(s=>`<a href="#" data-q="${s}">${s}</a>`).join("");
+  document.querySelectorAll("#qa-suggest a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();showSection("qa");askQA(a.dataset.q);}));
+  try{const s=await jget("/api/samples");document.getElementById("sot-samples").innerHTML=s.payment_ids.slice(0,4).map(id=>`<a href="#" data-id="${id}">${id}</a>`).join("");
+    document.querySelectorAll("#sot-samples a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();document.getElementById("sot-id").value=a.dataset.id;lookup(a.dataset.id);}));
+    document.getElementById("sot-id").value=s.payment_ids[0];}catch(e){}
 }
-init().catch(e=> document.body.insertAdjacentHTML("afterbegin", `<pre class="err">${e}</pre>`));
+init().catch(e=>document.body.insertAdjacentHTML("afterbegin",`<pre class="err">${e}</pre>`));
 </script>
 </body>
 </html>

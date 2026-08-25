@@ -142,15 +142,18 @@ pip install -r requirements-api.txt
 python -m ledgerproof.api --data data/heldout        # then open http://127.0.0.1:8000
 ```
 
-A Python-only single-page dashboard (no npm/build step) over the live recon pipeline:
-- **Recon summary** — KPI cards led by the cardinal combined false-match rate.
-- **Exception queue** — every bank credit expands to its full story: agent evidence → verifier
-  checks (re-derived in code) → governor decision → plain-English narrative → audit. Every row
-  answers "why did the system do this?"
-- **Governor controls** — toggle auto-resolve, set the confidence threshold, edit the allowlist,
-  and Apply; the KPIs and queue update live (finance-team-owned autonomy, on screen).
-- **Source of truth** — the three views (PG capture · settlement report · internal ledger) of any
-  transaction, side by side.
+A Python-only single-page SaaS dashboard (no npm/build step), light and minimal, with sidebar
+navigation over the live recon pipeline:
+- **Overview** — KPI cards led by the cardinal combined false-match rate, plus the governor controls
+  (toggle auto-resolve, confidence threshold, allowlist → Apply; KPIs update live).
+- **Exceptions** — every bank credit expands to its full story: agent evidence → verifier checks
+  (re-derived in code) → governor decision → plain-English narrative → audit. "Why did the system do this?"
+- **Q&A agent** — ask about the run in natural language.
+- **Tax** — the GST-on-MDR reconciliation, per method.
+- **Source of truth** — the three views (PG capture · settlement report · internal ledger) side by side.
+- **Import data** — reconcile a bundled sample dataset, or **upload your own source CSVs** (five files,
+  column templates provided). Uploaded runs have no ground-truth key, so the UI honestly shows the
+  operational reconciliation without accuracy-vs-truth metrics.
 
 ## Status
 

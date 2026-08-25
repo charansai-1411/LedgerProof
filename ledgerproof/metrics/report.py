@@ -70,6 +70,7 @@ def build_report(data_dir: str | Path, model: AgentModel, gov_cfg: GovernorConfi
     return {
         "dataset": data_dir.name,
         "seed": gt.get("seed"),
+        "graded": True,
         "policy": {
             "auto_resolve_enabled": gov_cfg.enabled,
             "min_confidence": gov_cfg.min_confidence,

@@ -59,3 +59,39 @@ def test_transaction_returns_three_views(client):
     t = client.get(f"/api/transaction/{pid}").json()
     assert t["pg_capture"] and t["settlement_report"] and t["internal_ledger"]
     assert client.get("/api/transaction/pay_does_not_exist").status_code == 404
+
+
+def test_dataset_endpoint(client):
+    d = client.get("/api/dataset").json()
+    assert "current" in d and "available" in d
+    assert d["current"]["has_ground_truth"] is True
+
+
+def test_template_endpoint(client):
+    t = client.get("/api/template/pg_payments").text
+    assert "payment_id" in t and "captured_amount" in t
+
+
+def test_import_ungraded_report(tmp_path_factory):
+    """Importing raw source CSVs (no ground truth) yields an ungraded but working report."""
+    from ledgerproof.api.importer import import_dataset
+
+    gcfg = GeneratorConfig.load(CONFIG, seed_override=22, run_name_override="imp_src")
+    gcfg.n_payments = 800
+    ds = Generator(gcfg).generate()
+    src = write_dataset(ds, gcfg, out_root=tmp_path_factory.mktemp("src"))
+
+    files = {t: (src / f"{t}.csv").read_bytes()
+             for t in ["pg_payments", "settlements", "settlement_report",
+                       "bank_statement", "internal_ledger"]}
+    out = tmp_path_factory.mktemp("imp") / "uploaded"
+    summary = import_dataset(files, out)
+    assert summary["has_ground_truth"] is False
+    assert not (out / "ground_truth.json").exists()
+
+    c = TestClient(create_app(out))
+    rep = c.get("/api/report").json()
+    assert rep["graded"] is False
+    assert rep["seam_a_payments"]["match_rate"] > 0.9
+    assert rep["cardinal"]["combined_false_match_rate"] is None
+    assert c.get("/api/dataset").json()["current"]["has_ground_truth"] is False

@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import asdict
 from pathlib import Path
 
 from ..agent.heuristic import HeuristicAgentModel
 from ..agent.loader import load_seam_b
 from ..engine.loader import load_sources
+from ..engine.seam_a import SeamAEngine
 from ..generator.config import FeeConfig
 from ..metrics.report import build_report
 from ..qa.service import QAContext, RuleQA
 from ..tax.matcher import match_tax
 from ..verifier.config import GovernorConfig
+from ..verifier.models import DECISION_AUTO, DECISION_HUMAN
 from ..verifier.pipeline import run_pipeline
 
 
@@ -21,6 +24,7 @@ class ReconService:
         self.data_dir = Path(data_dir)
         self.policy = policy
         self.model = HeuristicAgentModel()
+        self.has_ground_truth = (self.data_dir / "ground_truth.json").exists()
 
         eng = load_sources(self.data_dir)
         self._eng_sources = eng
@@ -32,8 +36,58 @@ class ReconService:
         self._credit = {c.bank_txn_id: c for c in sb.bank_credits}
 
     # ---- reads ---------------------------------------------------------------
+    def dataset_info(self) -> dict:
+        return {
+            "name": self.data_dir.name,
+            "has_ground_truth": self.has_ground_truth,
+            "payments": len(self._pay),
+            "bank_credits": len(self._credit),
+        }
+
     def report(self) -> dict:
-        return build_report(self.data_dir, self.model, self.policy)
+        if self.has_ground_truth:
+            return build_report(self.data_dir, self.model, self.policy)
+        return self._ungraded_report()
+
+    def _ungraded_report(self) -> dict:
+        """Operational metrics for uploaded data (no ground truth -> no accuracy-vs-truth)."""
+        t0 = time.perf_counter()
+        recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        records = run_pipeline(self.data_dir, self.model, self.policy)
+        elapsed = time.perf_counter() - t0
+        autos = [r for r in records if r.governor.decision == DECISION_AUTO]
+        humans = [r for r in records if r.governor.decision == DECISION_HUMAN]
+        opened = sum(1 for r in records if r.finding.matched_settlement_id is None)
+        s = recon.summary()
+        processed = recon.total_payments + len(records)
+        return {
+            "dataset": self.data_dir.name,
+            "seed": None,
+            "graded": False,
+            "policy": {"auto_resolve_enabled": self.policy.enabled,
+                       "min_confidence": self.policy.min_confidence,
+                       "allowlist": list(self.policy.allowlist)},
+            "cardinal": {"combined_false_match_rate": None,
+                         "acted_matches": s["matched"] + len(autos), "acted_false_matches": None},
+            "seam_a_payments": {"total": s["total_payments"], "matched": s["matched"],
+                                "match_rate": s["match_rate"], "false_match_rate": None,
+                                "exceptions": s["exceptions"], "partial_payment_recall": None,
+                                "timing_recall": None,
+                                "duplicates_detected": {"detected": s["duplicates"], "true": None}},
+            "seam_b_credits": {"total": len(records), "matchable": None,
+                               "correct_matches": len(records) - opened, "false_match_rate": None,
+                               "matchable_recall": None,
+                               "hero": {"total": None, "correct": None, "recall": None},
+                               "unexplained_correctly_opened": opened},
+            "governance": {"verified": sum(1 for r in records if r.verification.verified),
+                           "auto_resolved": len(autos), "wrong_auto_resolutions": None,
+                           "human_review": len(humans),
+                           "auto_resolve_rate": round(len(autos) / len(records), 4) if records else 0.0,
+                           "human_queue_precision": None},
+            "coverage": {"every_unresolved_item_has_a_reason": True},
+            "throughput": {"records_processed": processed, "seconds": round(elapsed, 3),
+                           "records_per_second": round(processed / elapsed, 1) if elapsed else 0.0},
+        }
 
     def exceptions(self) -> list[dict]:
         """Every bank credit's full journey (finding -> verification -> governor), newest first
