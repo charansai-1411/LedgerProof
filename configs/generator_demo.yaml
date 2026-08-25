@@ -1,0 +1,38 @@
+# Independent evaluation set — a seed and break mix used NOWHERE else in the project (not in the
+# dev/heldout datasets, not in any test). Regenerate with:
+#   python -m ledgerproof.generator --config configs/generator_demo.yaml
+# then score it:
+#   python -m ledgerproof.metrics --data data/demo --enable-auto --allow bank_settlement_match
+
+seed: 271828182            # unused elsewhere (dev=42, heldout=20270905)
+run_name: demo
+merchant_id: mrc_acme
+
+n_payments: 4000
+n_cycles: 28
+settlement_delay_days: 2
+base_date: "2026-10-01"
+
+method_mix:                # a different mix again
+  upi: 0.62
+  card: 0.24
+  netbanking: 0.09
+  wallet: 0.05
+
+refund_rate: 0.09
+
+exception_rate: 0.065
+
+breaks:                    # a fresh, unseen break mix
+  compound_variance: 0.30
+  timing_in_transit: 0.40
+  duplicate: 0.10
+  unexplained: 0.20
+
+seam_b_match_rate: 0.28
+
+seam_b_mess:
+  utr_garbled_rate: 0.40
+  utr_missing_rate: 0.12
+  same_day_collision_rate: 0.45
+  date_drift_days: [0, 1, 2, 3]
