@@ -30,10 +30,12 @@ class AgentFinding:
     match_basis: list[str] = field(default_factory=list)  # e.g. ["exact_utr", "net_amount"]
     evidence: list[str] = field(default_factory=list)
     narrative: str = ""
+    break_type: str = "bank_settlement_match"  # the governor gates auto-resolve by this category
 
     def as_record(self) -> dict:
         return {
             "bank_txn_id": self.bank_txn_id,
+            "break_type": self.break_type,
             "matched_settlement_id": self.matched_settlement_id,
             "confidence": round(self.confidence, 3),
             "match_basis": self.match_basis,

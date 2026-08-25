@@ -89,12 +89,30 @@ The model sits behind a swappable `AgentModel` interface:
   ones correctly). Needs `pip install -r requirements-agent.txt`, the Vertex AI API enabled, and
   `gcloud auth application-default login` (project `ledgerproof-506605`, `us-central1`).
 
+## Run the verifier + governor (Item #4)
+
+```bash
+python -m ledgerproof.verifier --data data/dev                       # conservative default: auto-resolve OFF
+python -m ledgerproof.verifier --data data/dev --enable-auto \
+    --allow bank_settlement_match --min-confidence 0.95              # controlled autonomy, on
+```
+
+The verifier re-derives the agent's *one* proposed match in pure code (settlement net summed from
+its own report rows == bank credit to the paisa, within the date window, no conflicting claim) —
+the *check* side of search ≠ check; it never searches. The governor then auto-resolves a verified
+finding **only** if auto-resolve is enabled, its category is on the allowlist, and confidence ≥ the
+threshold — all off by default. Every decision emits an append-only, reversible audit record.
+
+With auto-resolve off, all 35 verified matches are still **held for human review**. Enabling it with
+`bank_settlement_match` on the allowlist auto-resolves the 35 and routes the 45 unexplained credits
+to human review.
+
 ## Status
 
 - [x] Synthetic data generator with ground-truth key
 - [x] Deterministic matching engine (Seam A) — 95.2% match rate, **0 false matches**
-- [x] Exception agent — bank-credit ↔ settlement matching (Seam B) — 9/9 hero, **0 false matches** *(heuristic; Gemini/Vertex behind the same interface)*
-- [ ] Deterministic verifier + governor
+- [x] Exception agent — bank-credit ↔ settlement matching (Seam B) — 9/9 hero, **0 false matches** *(heuristic + Gemini/Vertex, verified live)*
+- [x] Deterministic verifier + governor — re-derives each match; controlled autonomy off by default; **never confirms a wrong match**
 - [ ] Honest metrics harness on the held-out set
 - [ ] *Stretch:* resolved-pattern cache · dashboard · Cloud Run deploy
 

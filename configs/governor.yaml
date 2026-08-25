@@ -1,0 +1,12 @@
+# Governor policy — finance-team-owned. Controlled autonomy: the system can act, but only
+# inside a boundary a human set. Defaults are conservative: auto-resolve is OFF.
+auto_resolve:
+  enabled: false           # master switch — off by default
+  min_confidence: 0.95     # a verified finding still needs at least this confidence
+  allowlist: []            # break categories allowed to auto-resolve, e.g. [bank_settlement_match]
+
+# Plausible bank-credit window relative to a settlement's created_at (T+2 + NEFT slack), in days.
+# The verifier rejects a proposed match whose date drift falls outside this range.
+verifier:
+  min_drift_days: 0
+  max_drift_days: 4
