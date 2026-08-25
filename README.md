@@ -85,8 +85,9 @@ opened, false-match rate 0.0.**
 
 The model sits behind a swappable `AgentModel` interface:
 - `heuristic` — deterministic baseline / no-API fallback (always runs).
-- `gemini` — Gemini on Vertex AI. Needs `pip install -r requirements-agent.txt`, the Vertex AI API
-  enabled, and `gcloud auth application-default login` (project `ledgerproof-506605`, `us-central1`).
+- `gemini` — Gemini on Vertex AI (verified live: matches the hard credits and opens the unexplained
+  ones correctly). Needs `pip install -r requirements-agent.txt`, the Vertex AI API enabled, and
+  `gcloud auth application-default login` (project `ledgerproof-506605`, `us-central1`).
 
 ## Status
 
