@@ -130,6 +130,23 @@ as the cardinal number**. (Two verified hero credits with *missing* UTRs scored 
 confidence threshold, so the governor correctly held them for human review — controlled autonomy at
 work, and why human-queue precision is 96% not 100%.)
 
+## Dashboard (Item #7)
+
+```bash
+pip install -r requirements-api.txt
+python -m ledgerproof.api --data data/heldout        # then open http://127.0.0.1:8000
+```
+
+A Python-only single-page dashboard (no npm/build step) over the live recon pipeline:
+- **Recon summary** — KPI cards led by the cardinal combined false-match rate.
+- **Exception queue** — every bank credit expands to its full story: agent evidence → verifier
+  checks (re-derived in code) → governor decision → plain-English narrative → audit. Every row
+  answers "why did the system do this?"
+- **Governor controls** — toggle auto-resolve, set the confidence threshold, edit the allowlist,
+  and Apply; the KPIs and queue update live (finance-team-owned autonomy, on screen).
+- **Source of truth** — the three views (PG capture · settlement report · internal ledger) of any
+  transaction, side by side.
+
 ## Status
 
 - [x] Synthetic data generator with ground-truth key
@@ -137,7 +154,8 @@ work, and why human-queue precision is 96% not 100%.)
 - [x] Exception agent — bank-credit ↔ settlement matching (Seam B) — 15/15 hero on held-out, **0 false matches** *(heuristic + Gemini/Vertex, verified live)*
 - [x] Deterministic verifier + governor — re-derives each match; controlled autonomy off by default; **never confirms a wrong match**
 - [x] Honest metrics harness on the held-out set — **combined false-match rate 0.0** across 4,745 asserted reconciliations
-- [ ] *Stretch:* resolved-pattern cache · dashboard · Cloud Run deploy
+- [x] Dashboard — FastAPI-served single page: summary · exception queue · governor controls · source-of-truth
+- [ ] *Stretch/bonus:* resolved-pattern cache · Cloud Run deploy
 
 ## Requirements
 

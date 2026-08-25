@@ -1,0 +1,5 @@
+# Optional — only needed to serve the dashboard / API.
+# The core pipeline (generator, engine, agent, verifier, metrics) runs without this.
+#   pip install -r requirements-api.txt
+fastapi>=0.110
+uvicorn[standard]>=0.29

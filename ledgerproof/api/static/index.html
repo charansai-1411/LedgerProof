@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LedgerProof — Settlement Reconciliation</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131824; --panel2: #1a2130; --line: #232c3d;
+    --ink: #e7ecf3; --muted: #8b97ab; --faint: #5d6a80;
+    --green: #37d39a; --green-bg: #10261f; --amber: #f0b429; --amber-bg: #2a2410;
+    --blue: #5aa2ff; --red: #ff6b6b; --accent: #7c5cff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+         font-size: 14px; line-height: 1.5; }
+  a { color: var(--blue); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 80px; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  header .badge { font-family: var(--mono); font-size: 12px; color: var(--muted);
+                  background: var(--panel2); border: 1px solid var(--line); padding: 3px 9px; border-radius: 20px; }
+  .tagline { color: var(--muted); margin: 2px 0 22px; max-width: 760px; }
+  .tagline b { color: var(--ink); font-weight: 600; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint);
+       margin: 30px 0 12px; font-weight: 600; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .kpi .label { color: var(--muted); font-size: 12px; }
+  .kpi .val { font-family: var(--mono); font-size: 25px; margin-top: 6px; letter-spacing: -.5px; }
+  .kpi .sub { color: var(--faint); font-size: 11px; margin-top: 3px; }
+  .kpi.cardinal { border-color: var(--green); background: linear-gradient(180deg, var(--green-bg), var(--panel)); }
+  .kpi.cardinal .val { color: var(--green); }
+
+  /* governor panel */
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .gov { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; }
+  .gov .ctl { display: flex; flex-direction: column; gap: 5px; }
+  .gov label { color: var(--muted); font-size: 12px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--mono); }
+  .switch input { appearance: none; width: 38px; height: 21px; background: var(--panel2); border: 1px solid var(--line);
+                  border-radius: 20px; position: relative; cursor: pointer; transition: .15s; }
+  .switch input:checked { background: var(--green-bg); border-color: var(--green); }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px;
+                         border-radius: 50%; background: var(--faint); transition: .15s; }
+  .switch input:checked::after { left: 19px; background: var(--green); }
+  input[type=range] { width: 150px; accent-color: var(--accent); }
+  .chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 8px;
+          border: 1px solid var(--line); background: var(--panel2); color: var(--muted); cursor: pointer; }
+  .chip.on { border-color: var(--accent); color: var(--ink); background: #1c1832; }
+  button.apply { font: inherit; font-size: 13px; color: #0b0e14; background: var(--accent); border: 0;
+                 padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+  button.apply:hover { filter: brightness(1.08); }
+
+  /* exception queue */
+  .queue { display: flex; flex-direction: column; gap: 7px; }
+  .row { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .row > .head { display: grid; grid-template-columns: 150px 1fr 90px 130px 20px; gap: 12px; align-items: center;
+                 padding: 11px 14px; cursor: pointer; }
+  .row > .head:hover { background: var(--panel2); }
+  .id { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .outcome { font-family: var(--mono); font-size: 13px; }
+  .outcome .match { color: var(--green); }
+  .outcome .open { color: var(--amber); }
+  .conf { font-family: var(--mono); font-size: 13px; color: var(--ink); text-align: right; }
+  .pill { justify-self: start; font-size: 11.5px; font-family: var(--mono); padding: 3px 10px; border-radius: 20px;
+          border: 1px solid; white-space: nowrap; }
+  .pill.auto { color: var(--green); border-color: #1f4a3a; background: var(--green-bg); }
+  .pill.human { color: var(--amber); border-color: #4a3f16; background: var(--amber-bg); }
+  .caret { color: var(--faint); transition: .15s; text-align: center; }
+  .row.open .caret { transform: rotate(90deg); }
+  .detail { display: none; border-top: 1px solid var(--line); padding: 14px 16px; background: #0f131d; }
+  .row.open .detail { display: block; }
+  .detail .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .detail .grid { grid-template-columns: 1fr; } }
+  .detail h4 { margin: 0 0 7px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
+  .detail ul { margin: 0; padding-left: 16px; }
+  .detail li { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 3px 0; }
+  .checks { display: flex; flex-direction: column; gap: 4px; }
+  .check { font-family: var(--mono); font-size: 12px; }
+  .check .ok { color: var(--green); } .check .no { color: var(--red); }
+  .narrative { margin-top: 12px; padding: 11px 13px; background: var(--panel2); border-left: 3px solid var(--accent);
+               border-radius: 6px; color: var(--ink); font-size: 13px; }
+  .why { margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .why b { color: var(--ink); }
+
+  /* source of truth */
+  .sot-input { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .sot-input input { font-family: var(--mono); font-size: 13px; background: var(--panel2); border: 1px solid var(--line);
+                     color: var(--ink); border-radius: 8px; padding: 8px 11px; width: 220px; }
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 820px) { .three { grid-template-columns: 1fr; } }
+  .view { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; }
+  .view h4 { margin: 0 0 9px; font-size: 12px; color: var(--blue); }
+  .kv { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 12px;
+        padding: 3px 0; border-bottom: 1px dashed var(--line); }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { color: var(--faint); } .kv .v { color: var(--ink); }
+  .muted { color: var(--muted); } .err { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>LedgerProof</h1>
+    <span class="badge" id="dataset">loading…</span>
+    <span class="badge" id="policy-badge"></span>
+  </header>
+  <p class="tagline">Deterministic code proves the books; a tool-using agent investigates only what the
+    code cannot match; <b>no resolution is written until the code re-verifies it</b>. Every screen answers
+    “why did the system do this?”</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Governor — finance-team controls</h2>
+  <div class="panel gov" id="gov">
+    <div class="ctl">
+      <label>Auto-resolve</label>
+      <span class="switch"><input type="checkbox" id="g-enabled"><span class="muted" id="g-enabled-t">off</span></span>
+    </div>
+    <div class="ctl">
+      <label>Min confidence: <span id="g-conf-v" class="mono">0.95</span></label>
+      <input type="range" id="g-conf" min="0.5" max="1" step="0.01" value="0.95">
+    </div>
+    <div class="ctl">
+      <label>Allowlist</label>
+      <span class="chip" id="g-allow" data-cat="bank_settlement_match">bank_settlement_match</span>
+    </div>
+    <button class="apply" id="g-apply">Apply policy</button>
+  </div>
+
+  <h2>Exception queue — bank credit → settlement</h2>
+  <div class="queue" id="queue"></div>
+
+  <h2>Source of truth — three views of one transaction</h2>
+  <div class="sot-input">
+    <input id="sot-id" placeholder="payment_id (pay_…)" />
+    <button class="apply" id="sot-go">Look up</button>
+    <span id="sot-samples" class="muted"></span>
+  </div>
+  <div class="three" id="sot"></div>
+</div>
+
+<script>
+const rs = p => "₹" + (p/100).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pct = x => (x*100).toFixed(1) + "%";
+const el = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstChild; };
+async function jget(u){ const r = await fetch(u); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+
+let POLICY = {enabled:false, min_confidence:0.95, allowlist:[]};
+
+async function loadReport(){
+  const c = await jget("/api/report");
+  document.getElementById("dataset").textContent = "dataset: " + c.dataset + " · seed " + c.seed;
+  const a=c.seam_a_payments, b=c.seam_b_credits, g=c.governance, card=c.cardinal, t=c.throughput;
+  const fmZero = card.combined_false_match_rate === 0;
+  document.getElementById("kpis").innerHTML = "";
+  const kpis = [
+    {cls:"kpi cardinal", label:"Combined false-match rate", val: card.combined_false_match_rate,
+     sub:`${card.acted_false_matches} wrong of ${card.acted_matches} asserted · ${fmZero?"the cardinal sin, avoided":"REVIEW"}`},
+    {label:"Seam A · payments", val: pct(a.match_rate), sub:`${a.matched}/${a.total} matched · ${a.exceptions} exceptions`},
+    {label:"Seam B · bank credits", val:`${b.correct_matches}/${b.matchable}`, sub:`hero ${b.hero.correct}/${b.hero.total} · ${b.unexplained_correctly_opened} opened`},
+    {label:"Auto-resolved", val: g.auto_resolved, sub:`${g.verified} verified · ${g.wrong_auto_resolutions} wrong`},
+    {label:"Human queue", val: g.human_review, sub:`precision ${pct(g.human_queue_precision)}`},
+    {label:"Throughput", val: Math.round(t.records_per_second).toLocaleString("en-IN"), sub:`records / second`},
+  ];
+  for(const k of kpis){
+    document.getElementById("kpis").append(el(
+      `<div class="${k.cls||"kpi"}"><div class="label">${k.label}</div><div class="val">${k.val}</div><div class="sub">${k.sub}</div></div>`));
+  }
+  document.getElementById("policy-badge").textContent =
+    "auto-resolve: " + (c.policy.auto_resolve_enabled ? "ON" : "off") + " · ≥" + c.policy.min_confidence;
+}
+
+function checkRow(name, ok){ return `<div class="check"><span class="${ok?"ok":"no"}">${ok?"✓":"✗"}</span> ${name}</div>`; }
+
+async function loadQueue(){
+  const rows = await jget("/api/exceptions");
+  const q = document.getElementById("queue"); q.innerHTML = "";
+  for(const r of rows){
+    const matched = r.matched_settlement_id;
+    const dec = r.governor_decision;
+    const v = r.verification;
+    const outcome = matched
+      ? `<span class="match">→ ${matched}</span>`
+      : `<span class="open">opened (unexplained)</span>`;
+    const pill = dec === "auto_resolved" ? `<span class="pill auto">auto-resolved</span>`
+                                         : `<span class="pill human">human review</span>`;
+    const checks = Object.entries(v.checks||{}).map(([k,val])=>checkRow(k,val)).join("") ||
+                   `<div class="muted" style="font-family:var(--mono);font-size:12px">${v.reason}</div>`;
+    const evidence = (r.evidence||[]).map(e=>`<li>${e}</li>`).join("") || `<li class="muted">—</li>`;
+    const row = el(`<div class="row">
+      <div class="head">
+        <span class="id">${r.bank_txn_id}</span>
+        <span class="outcome">${outcome}</span>
+        <span class="conf">${(r.confidence).toFixed(2)}</span>
+        ${pill}
+        <span class="caret">▸</span>
+      </div>
+      <div class="detail">
+        <div class="grid">
+          <div><h4>Evidence (agent investigation)</h4><ul>${evidence}</ul></div>
+          <div><h4>Verifier — re-derived in code</h4><div class="checks">${checks}</div>
+            <div class="why">rederived net: <b>${v.rederived_net!=null?rs(v.rederived_net):"—"}</b></div></div>
+        </div>
+        <div class="narrative">${r.narrative||""}</div>
+        <div class="why">Governor: <b>${dec.replace("_"," ")}</b> — ${r.governor_reason}. Reversible: ${r.reversible}.</div>
+      </div>
+    </div>`);
+    row.querySelector(".head").addEventListener("click", ()=> row.classList.toggle("open"));
+    q.append(row);
+  }
+}
+
+async function loadPolicy(){
+  POLICY = await jget("/api/policy");
+  document.getElementById("g-enabled").checked = POLICY.enabled;
+  document.getElementById("g-enabled-t").textContent = POLICY.enabled ? "on" : "off";
+  document.getElementById("g-conf").value = POLICY.min_confidence;
+  document.getElementById("g-conf-v").textContent = Number(POLICY.min_confidence).toFixed(2);
+  document.getElementById("g-allow").classList.toggle("on", POLICY.allowlist.includes("bank_settlement_match"));
+}
+document.getElementById("g-enabled").addEventListener("change", e=>{
+  document.getElementById("g-enabled-t").textContent = e.target.checked ? "on" : "off"; });
+document.getElementById("g-conf").addEventListener("input", e=>{
+  document.getElementById("g-conf-v").textContent = Number(e.target.value).toFixed(2); });
+document.getElementById("g-allow").addEventListener("click", e=> e.target.classList.toggle("on"));
+document.getElementById("g-apply").addEventListener("click", async ()=>{
+  const body = {
+    enabled: document.getElementById("g-enabled").checked,
+    min_confidence: parseFloat(document.getElementById("g-conf").value),
+    allowlist: document.getElementById("g-allow").classList.contains("on") ? ["bank_settlement_match"] : [],
+  };
+  await fetch("/api/policy", {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(body)});
+  await Promise.all([loadReport(), loadQueue()]);
+});
+
+function view(title, obj){
+  if(!obj) return `<div class="view"><h4>${title}</h4><div class="muted">— none —</div></div>`;
+  const money = new Set(["captured_amount","refund_amount","gross_amount","mdr_fee","gst_on_mdr",
+    "refund_deduction","net_amount","booked_amount","amount","fees","tax","reserve_held","reserve_release"]);
+  const kv = Object.entries(obj).map(([k,val])=>{
+    let d = val; if(val!=null && money.has(k) && typeof val==="number") d = rs(val);
+    return `<div class="kv"><span class="k">${k}</span><span class="v">${d==null?"—":d}</span></div>`;
+  }).join("");
+  return `<div class="view"><h4>${title}</h4>${kv}</div>`;
+}
+async function lookup(pid){
+  const sot = document.getElementById("sot");
+  try{
+    const t = await jget("/api/transaction/" + encodeURIComponent(pid));
+    sot.innerHTML = view("PG capture", t.pg_capture)
+      + view("Settlement report" , t.settlement_report ? {...t.settlement_report, settlement_utr: t.settlement?.utr, settlement_created_at: t.settlement?.created_at} : null)
+      + view("Internal ledger", t.internal_ledger);
+  }catch(e){ sot.innerHTML = `<div class="view err">not found: ${pid}</div>`; }
+}
+document.getElementById("sot-go").addEventListener("click", ()=> lookup(document.getElementById("sot-id").value.trim()));
+document.getElementById("sot-id").addEventListener("keydown", e=>{ if(e.key==="Enter") lookup(e.target.value.trim()); });
+
+async function init(){
+  await Promise.all([loadReport(), loadQueue(), loadPolicy()]);
+  const s = await jget("/api/samples");
+  const box = document.getElementById("sot-samples");
+  box.innerHTML = "try: " + s.payment_ids.slice(0,4).map(id=>`<a href="#" data-id="${id}">${id}</a>`).join(" · ");
+  box.querySelectorAll("a").forEach(a=> a.addEventListener("click", e=>{
+    e.preventDefault(); document.getElementById("sot-id").value = a.dataset.id; lookup(a.dataset.id); }));
+  lookup(s.payment_ids[0]);
+}
+init().catch(e=> document.body.insertAdjacentHTML("afterbegin", `<pre class="err">${e}</pre>`));
+</script>
+</body>
+</html>
