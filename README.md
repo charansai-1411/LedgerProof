@@ -155,7 +155,22 @@ A Python-only single-page dashboard (no npm/build step) over the live recon pipe
 - [x] Deterministic verifier + governor — re-derives each match; controlled autonomy off by default; **never confirms a wrong match**
 - [x] Honest metrics harness on the held-out set — **combined false-match rate 0.0** across 4,745 asserted reconciliations
 - [x] Dashboard — FastAPI-served single page: summary · exception queue · governor controls · source-of-truth
-- [ ] *Stretch/bonus:* resolved-pattern cache · Cloud Run deploy
+- [x] Resolved-pattern cache — verifier-gated; **97% fewer agent (LLM) calls, 0 false matches**
+- [ ] *Bonus:* Cloud Run deploy
+
+## Resolved-pattern cache (Item #6, stretch)
+
+```bash
+python -m ledgerproof.cache --data data/heldout
+```
+
+A verifier-gated performance layer: when the agent resolves a credit and the verifier confirms it,
+the resolution *strategy* is cached against a precise pattern key. A later credit matching that
+pattern is resolved by re-applying the cached strategy deterministically — **without another agent
+(LLM) investigation** — and is **still re-verified in code**. On the held-out set: 92 credits → **3
+agent investigations** (one per novel pattern) + 89 cache hits = **97% fewer agent calls, 0 false
+matches**. The cache proposes; the verifier still decides — so a mis-cached pattern is caught at
+verify time, and the cache stays out of the metrics path (held-out numbers run cold).
 
 ## Requirements
 
