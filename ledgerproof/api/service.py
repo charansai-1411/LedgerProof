@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..agent.heuristic import HeuristicAgentModel
 from ..agent.loader import load_seam_b
+from ..agent.tools import SeamBToolbox
 from ..engine.loader import load_sources
 from ..engine.seam_a import SeamAEngine
 from ..generator.config import FeeConfig
@@ -136,6 +137,41 @@ class ReconService:
 
     def tax_report(self) -> dict:
         return match_tax(self._eng_sources, FeeConfig.load()).to_dict()
+
+    # ---- live agent trace ----------------------------------------------------
+    def investigation_targets(self) -> list[dict]:
+        """Bank credits to investigate, hard/interesting ones (non-clean UTR) listed first."""
+        tools = SeamBToolbox(load_seam_b(self.data_dir))
+        out = []
+        for bid in tools.all_bank_txn_ids():
+            bc = tools.get_bank_credit(bid)
+            s = tools.find_settlement_by_utr(bc.utr)
+            kind = "clean UTR" if (s and s.amount == bc.credit_amount) else ("missing UTR" if not bc.utr else "garbled UTR")
+            out.append({"bank_txn_id": bid, "kind": kind, "amount": bc.credit_amount})
+        out.sort(key=lambda r: r["kind"] == "clean UTR")  # interesting cases first
+        return out
+
+    def stream_investigation(self, bank_txn_id: str, model_name: str):
+        from collections import Counter
+
+        from ..agent.trace import run_traced
+        from ..verifier.governor import Governor
+        from ..verifier.verifier import SeamBVerifier
+
+        tools = SeamBToolbox(load_seam_b(self.data_dir))
+        # cheap deterministic pass for conflict counts (not an agent/LLM investigation)
+        strat = HeuristicAgentModel()
+        claimed = Counter(f.matched_settlement_id
+                          for f in (strat.investigate(b, tools) for b in tools.all_bank_txn_ids())
+                          if f.matched_settlement_id)
+        verifier = SeamBVerifier(self.policy.min_drift_days, self.policy.max_drift_days)
+        governor = Governor(self.policy)
+        if model_name == "gemini":
+            from ..agent.gemini import GeminiVertexAgentModel
+            model = GeminiVertexAgentModel()
+        else:
+            model = HeuristicAgentModel()
+        return run_traced(bank_txn_id, tools, model, verifier, governor, claimed)
 
     def ask(self, question: str) -> dict:
         # a fresh QAContext reflects the current policy (auto-resolve toggles etc.)

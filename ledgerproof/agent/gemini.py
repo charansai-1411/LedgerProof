@@ -116,6 +116,34 @@ class GeminiVertexAgentModel(AgentModel):
             _CURRENT_TOOLS.reset(token)
         return self._parse(bank_txn_id, resp.text or "")
 
+    def investigate_with_trace(self, bank_txn_id: str, tools: SeamBToolbox):
+        """Return (finding, [trace steps]) — the real tool calls Gemini made, for the live view."""
+        from google.genai import types
+
+        config = types.GenerateContentConfig(
+            system_instruction=_SYSTEM,
+            tools=[get_bank_credit, list_candidate_settlements, get_settlement_detail],
+            temperature=0,
+        )
+        prompt = f"Match bank credit '{bank_txn_id}' to its settlement. Call get_bank_credit first."
+        token = _CURRENT_TOOLS.set(tools)
+        try:
+            resp = self._get_client().models.generate_content(
+                model=self.model, contents=prompt, config=config)
+        finally:
+            _CURRENT_TOOLS.reset(token)
+        finding = self._parse(bank_txn_id, resp.text or "")
+        steps: list = []
+        for item in (resp.automatic_function_calling_history or []):
+            for p in (item.parts or []):
+                if getattr(p, "function_call", None):
+                    steps.append({"type": "tool_call", "tool": p.function_call.name,
+                                  "args": dict(p.function_call.args or {})})
+                if getattr(p, "function_response", None):
+                    steps.append({"type": "tool_result", "text": f"received {p.function_response.name} result"})
+        steps.append({"type": "finding", "text": finding.narrative or f"match {finding.matched_settlement_id}"})
+        return finding, steps
+
     @staticmethod
     def _parse(bank_txn_id: str, text: str) -> AgentFinding:
         raw = text.strip()

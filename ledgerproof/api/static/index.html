@@ -154,6 +154,37 @@
   .file.ok{border-color:var(--green);background:var(--green-weak)}
   .up-status{margin-top:14px;font-size:13px}
   .muted{color:var(--muted)} .err{color:var(--red)}
+
+  /* live agent console */
+  select{font:inherit;font-size:13.5px;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+        padding:10px 12px;color:var(--ink);cursor:pointer}
+  .console{margin-top:16px;background:#0f1320;border:1px solid #1e2536;border-radius:12px;padding:16px 18px;
+        font-family:var(--mono);font-size:12.5px;line-height:1.7;min-height:120px;max-height:440px;overflow:auto;color:#c7d0e0}
+  .tline{white-space:pre-wrap;word-break:break-word;animation:slidein .18s ease}
+  @keyframes slidein{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+  .tline.dim{color:#5f6b82}
+  .tline.observe{color:#e7ecf3;font-weight:600;margin-bottom:2px}
+  .tline.status{color:#8a93a8;font-style:italic}
+  .tline.call{color:#7aa2ff} .tline.call b{color:#a9c2ff}
+  .tline.result{color:#96a0b5;padding-left:16px}
+  .tline.reason{color:#c8b06b;font-style:italic;padding-left:6px}
+  .tline.eval{padding-left:20px;color:#8a93a8}
+  .tline.eval.hit{color:#4fd8a4} .tline.eval.hit::before{content:"✓ "}
+  .tline.eval.miss::before{content:"·  "}
+  .tline.finding{color:#c9a6ff;font-weight:600;margin-top:4px}
+  .tline.verify{color:#8a93a8;margin-top:6px}
+  .tline.check{padding-left:16px} .tline.check .ok{color:#4fd8a4} .tline.check .no{color:#ff8080}
+  .tline.err{color:#ff8080}
+  .verdict{display:none;margin-top:14px}
+  .verdict.show{display:block}
+  .vcard{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--border);
+        border-radius:12px;padding:14px 18px}
+  .vcard .big{font-family:var(--mono);font-size:15px;font-weight:650}
+  .vpill{font-size:12px;font-family:var(--mono);padding:5px 12px;border-radius:20px;border:1px solid}
+  .vpill.auto{color:var(--green);border-color:#bfe6d3;background:var(--green-weak)}
+  .vpill.human{color:var(--amber);border-color:#eddcb3;background:var(--amber-weak)}
+  .vpill.ok{color:var(--green);border-color:#bfe6d3;background:var(--green-weak)}
+  .vpill.no{color:var(--red);border-color:#f2c9c9;background:#fdeeee}
 </style>
 </head>
 <body>
@@ -163,6 +194,7 @@
     <nav id="nav">
       <div class="nav-item active" data-sec="overview"><span class="ico">◐</span> Overview</div>
       <div class="nav-item" data-sec="exceptions"><span class="ico">≣</span> Exceptions</div>
+      <div class="nav-item" data-sec="live"><span class="ico">◎</span> Live agent</div>
       <div class="nav-item" data-sec="qa"><span class="ico">✦</span> Q&amp;A agent</div>
       <div class="nav-item" data-sec="tax"><span class="ico">%</span> Tax</div>
       <div class="nav-item" data-sec="lookup"><span class="ico">⌕</span> Source of truth</div>
@@ -206,6 +238,26 @@
         <p class="lead">Every bank credit → settlement decision. Expand any row to see why: agent evidence,
           the verifier's re-derivation in code, the governor's call, and the narrative.</p>
         <div class="queue" id="queue"></div>
+      </section>
+
+      <!-- LIVE AGENT -->
+      <section class="section" id="sec-live">
+        <h2 class="sec">Live agent investigation</h2>
+        <p class="lead">Pick a bank credit and watch the agent investigate it in real time — tool calls,
+          candidate evaluation, the proposed finding, then the verifier's re-derivation in code and the
+          governor's decision. Computed live on the active dataset.</p>
+        <div class="panel">
+          <div class="ask" style="align-items:center">
+            <select id="inv-credit" style="flex:1;min-width:260px"></select>
+            <select id="inv-model" style="min-width:150px">
+              <option value="heuristic">Heuristic (instant)</option>
+              <option value="gemini">Gemini (Vertex)</option>
+            </select>
+            <button class="btn primary" id="inv-go">Investigate ▸</button>
+          </div>
+          <div class="console" id="trace"><div class="tline dim">Select a credit and press Investigate.</div></div>
+          <div class="verdict" id="verdict"></div>
+        </div>
       </section>
 
       <!-- Q&A -->
@@ -266,10 +318,10 @@ const pct = x => x==null ? "n/a" : (x*100).toFixed(1)+"%";
 const el = h => {const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild;};
 async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.statusText);return r.json();}
 const SOURCES = ["pg_payments","settlements","settlement_report","bank_statement","internal_ledger"];
-const loaded = {exceptions:false, tax:false};
+const loaded = {exceptions:false, tax:false, live:false};
 
 /* ---------- navigation ---------- */
-const titles = {overview:"Overview",exceptions:"Exceptions",qa:"Q&A agent",tax:"Tax",lookup:"Source of truth",import:"Import data"};
+const titles = {overview:"Overview",exceptions:"Exceptions",live:"Live agent",qa:"Q&A agent",tax:"Tax",lookup:"Source of truth",import:"Import data"};
 function showSection(sec){
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n.dataset.sec===sec));
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("show"));
@@ -277,6 +329,7 @@ function showSection(sec){
   document.getElementById("page-title").textContent = titles[sec];
   if(sec==="exceptions" && !loaded.exceptions){ loadQueue(); loaded.exceptions=true; }
   if(sec==="tax" && !loaded.tax){ loadTax(); loaded.tax=true; }
+  if(sec==="live" && !loaded.live){ loadCredits(); loaded.live=true; }
 }
 document.querySelectorAll(".nav-item").forEach(n=> n.addEventListener("click", ()=> showSection(n.dataset.sec)));
 
@@ -338,6 +391,51 @@ async function loadQueue(){
     q.append(row);
   });
 }
+
+/* ---------- live agent ---------- */
+async function loadCredits(){
+  const sel=document.getElementById("inv-credit");
+  try{const rows=await jget("/api/credits");
+    sel.innerHTML=rows.map(r=>`<option value="${r.bank_txn_id}">${r.bank_txn_id} — ${r.kind} — ${rs(r.amount)}</option>`).join("");
+  }catch(e){sel.innerHTML=`<option>error loading credits</option>`;}
+}
+let _es=null;
+function tline(cls,html){const d=document.createElement("div");d.className="tline "+cls;d.innerHTML=html;
+  const c=document.getElementById("trace");c.appendChild(d);c.scrollTop=c.scrollHeight;}
+function renderEvent(e){
+  if(e.type==="observe") tline("observe","● "+e.text);
+  else if(e.type==="status") tline("status",e.text);
+  else if(e.type==="tool_call") tline("call","→ <b>"+e.tool+"</b>("+Object.entries(e.args||{}).map(([k,v])=>`${k}=${JSON.stringify(v)}`).join(", ")+")");
+  else if(e.type==="tool_result") tline("result","← "+e.text);
+  else if(e.type==="reason") tline("reason","• "+e.text);
+  else if(e.type==="eval") tline("eval "+(e.match?"hit":"miss"),e.text);
+  else if(e.type==="finding") tline("finding","◆ "+e.text);
+  else if(e.type==="verify"){
+    tline("verify","Verifier — re-derived in code (net "+rs(e.rederived_net)+"):");
+    Object.entries(e.checks||{}).forEach(([k,ok])=>tline("check",`<span class="${ok?'ok':'no'}">${ok?'✓':'✗'}</span> ${k}`));
+    if(!Object.keys(e.checks||{}).length) tline("check",'<span class="no">—</span> '+e.reason);
+  }
+  else if(e.type==="govern") tline("verify","Governor → "+e.decision.replace("_"," ")+" ("+e.reason+")");
+  else if(e.type==="error") tline("err","✗ "+e.text);
+  else if(e.type==="done") showVerdict(e);
+}
+function showVerdict(e){
+  const v=document.getElementById("verdict");
+  const out=e.matched?`<span class="big">matched → ${e.matched}</span>`:`<span class="big">opened (unexplained)</span>`;
+  v.innerHTML=`<div class="vcard">${out}<span class="vpill ${e.matched?'ok':'human'}">confidence ${e.confidence}</span></div>`;
+  v.classList.add("show");
+}
+function runInvestigation(){
+  if(_es){_es.close();_es=null;}
+  const bid=document.getElementById("inv-credit").value, model=document.getElementById("inv-model").value;
+  if(!bid)return;
+  document.getElementById("trace").innerHTML=""; document.getElementById("verdict").classList.remove("show");
+  document.getElementById("inv-go").disabled=true;
+  _es=new EventSource(`/api/investigate?bank_txn_id=${encodeURIComponent(bid)}&model=${model}`);
+  _es.onmessage=ev=>{const e=JSON.parse(ev.data);renderEvent(e);if(e.type==="done"||e.type==="error"){_es.close();_es=null;document.getElementById("inv-go").disabled=false;}};
+  _es.onerror=()=>{if(_es){_es.close();_es=null;}document.getElementById("inv-go").disabled=false;};
+}
+document.getElementById("inv-go").addEventListener("click",runInvestigation);
 
 /* ---------- q&a ---------- */
 async function askQA(q){

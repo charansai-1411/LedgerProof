@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import io
+import asyncio
+import json
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..generator.config import REPO_ROOT
@@ -91,6 +92,27 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     @app.get("/api/qa")
     def qa(q: str) -> dict:
         return svc().ask(q)
+
+    # ---- live agent trace (Server-Sent Events) ----
+    @app.get("/api/credits")
+    def credits() -> list[dict]:
+        return svc().investigation_targets()
+
+    @app.get("/api/investigate")
+    async def investigate(bank_txn_id: str, model: str = "heuristic") -> StreamingResponse:
+        gen = svc().stream_investigation(bank_txn_id, model)
+        pace = 0.28 if model == "heuristic" else 0.06
+
+        async def sse():
+            try:
+                for ev in gen:
+                    yield "data: " + json.dumps(ev) + "\n\n"
+                    await asyncio.sleep(pace)
+            except Exception as e:  # surface an agent/creds error into the live console
+                yield "data: " + json.dumps({"type": "error", "text": str(e)}) + "\n\n"
+
+        return StreamingResponse(sse(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     # ---- dataset management ----
     @app.get("/api/dataset")

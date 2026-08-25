@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 pytest.importorskip("fastapi")
@@ -65,6 +67,18 @@ def test_dataset_endpoint(client):
     d = client.get("/api/dataset").json()
     assert "current" in d and "available" in d
     assert d["current"]["has_ground_truth"] is True
+
+
+def test_live_agent_trace_streams(client):
+    creds = client.get("/api/credits").json()
+    assert creds
+    bid = next((c["bank_txn_id"] for c in creds if c["kind"] != "clean UTR"), creds[0]["bank_txn_id"])
+    body = client.get(f"/api/investigate?bank_txn_id={bid}&model=heuristic").text
+    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "observe" and kinds[-1] == "done"
+    for expected in ("finding", "verify", "govern"):
+        assert expected in kinds
 
 
 def test_template_endpoint(client):

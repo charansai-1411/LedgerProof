@@ -172,6 +172,10 @@ navigation over the live recon pipeline:
   (toggle auto-resolve, confidence threshold, allowlist → Apply; KPIs update live).
 - **Exceptions** — every bank credit expands to its full story: agent evidence → verifier checks
   (re-derived in code) → governor decision → plain-English narrative → audit. "Why did the system do this?"
+- **Live agent** — pick a bank credit and **watch the agent investigate it in real time** (streamed via
+  SSE): tool calls, candidate evaluation to the paisa, the proposed finding, then the verifier's
+  re-derivation in code and the governor's decision. Computed live on the active dataset (heuristic or
+  Gemini), not pre-recorded.
 - **Q&A agent** — ask about the run in natural language.
 - **Tax** — the GST-on-MDR reconciliation, per method.
 - **Source of truth** — the three views (PG capture · settlement report · internal ledger) side by side.

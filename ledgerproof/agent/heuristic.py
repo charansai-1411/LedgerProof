@@ -89,3 +89,49 @@ class HeuristicAgentModel(AgentModel):
                 f"under UTR, date-window or amount matching. Opened for review rather than forced."
             ),
         )
+
+    # ---- traced variant (for the live agent view) ----------------------------
+    def investigate_with_trace(self, bank_txn_id: str, tools: SeamBToolbox):
+        """Return (finding, [trace steps]) narrating the deterministic investigation."""
+        finding = self.investigate(bank_txn_id, tools)
+        return finding, self._narrate(bank_txn_id, tools, finding)
+
+    def _narrate(self, bank_txn_id: str, tools: SeamBToolbox, finding: AgentFinding) -> list:
+        bc = tools.get_bank_credit(bank_txn_id)
+        steps: list = [{"type": "tool_call", "tool": "find_settlement_by_utr", "args": {"utr": bc.utr or ""}}]
+        s = tools.find_settlement_by_utr(bc.utr)
+        if "exact_utr" in finding.match_basis:
+            steps.append({"type": "tool_result",
+                          "text": f"UTR uniquely identifies {finding.matched_settlement_id}; net matches to the paisa"})
+            steps.append({"type": "finding",
+                          "text": f"Clean UTR match → {finding.matched_settlement_id} (confidence {finding.confidence:.2f})"})
+            return steps
+        steps.append({"type": "tool_result",
+                      "text": (f"UTR '{bc.utr}' matches no unique settlement" if bc.utr else "no UTR in the narration")})
+        steps.append({"type": "reason",
+                      "text": "UTR unusable — searching candidate settlements by date window + net-amount envelope"})
+        matched_here = False
+        for before, after in ((2, 0),):
+            steps.append({"type": "tool_call", "tool": "get_settlements_in_window",
+                          "args": {"value_date": bc.value_date, "days_before": before, "days_after": after}})
+            cands = tools.get_settlements_in_window(bc.value_date, before, after)
+            steps.append({"type": "tool_result", "text": f"{len(cands)} candidate settlement(s) in the T+{before} window"})
+            exact = [c for c in cands if c.amount == bc.credit_amount]
+            for c in cands[:8]:
+                d = c.amount - bc.credit_amount
+                steps.append({"type": "eval", "match": d == 0,
+                              "text": f"{c.settlement_id}: net {_rs(c.amount)}   Δ {_rs(d)}"})
+            if finding.matched_settlement_id and any(c.settlement_id == finding.matched_settlement_id for c in exact):
+                matched_here = True
+        if finding.matched_settlement_id:
+            if not matched_here:
+                steps.append({"type": "reason", "text": "widening to the T+3 (+1) window"})
+                c2 = tools.get_settlements_in_window(bc.value_date, 3, 1)
+                steps.append({"type": "tool_result", "text": f"{len(c2)} candidate(s) in the widened window"})
+            steps.append({"type": "finding",
+                          "text": f"Only {finding.matched_settlement_id} reconciles to the paisa → propose it "
+                                  f"(confidence {finding.confidence:.2f})"})
+        else:
+            steps.append({"type": "reason", "text": "no candidate reconciles under UTR, window or amount"})
+            steps.append({"type": "finding", "text": "No defensible match — opened as unexplained (not forced)"})
+        return steps
