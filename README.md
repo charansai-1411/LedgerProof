@@ -112,6 +112,30 @@ With auto-resolve off, all 35 verified matches are still **held for human review
 `bank_settlement_match` on the allowlist auto-resolves the 35 and routes the 45 unexplained credits
 to human review.
 
+## Test on real public data
+
+No public dataset matches the three-way settlement schema (it's Razorpay-specific), so an adapter
+uses a real public *transactions* CSV as the source of PG captures — real amounts, method mix,
+ordering — and derives the settlement report, bank statement and ledger via the real fee/settlement
+model. Reconciliation then runs on real-world distributions, with a derived ground-truth key.
+
+```bash
+python -m ledgerproof.adapters.from_transactions \
+    --csv path/to/public.csv --amount-col amount --method-col type --run-name public1
+python -m ledgerproof.metrics --data data/public1 --enable-auto --allow bank_settlement_match
+```
+
+Column mappings for common public datasets:
+
+| Dataset | `--amount-col` | `--method-col` |
+| --- | --- | --- |
+| PaySim / Online Payments Fraud (Kaggle `ealaxi/paysim1`) | `amount` | `type` |
+| Credit-Card Transactions Fraud (Kaggle `kartik2112/fraud-detection`) | `amt` | `category` |
+| Banking Dataset (GitHub `ahsan084/Banking-Dataset`) | `Transaction Amount` | `Transaction Type` |
+
+`--amount-in paise` if amounts are already integer paise (default is rupees). Rows are capped by
+`--limit` (default 5000). The result loads in the dashboard's **Import → sample datasets** too.
+
 ## Report card on the held-out set (Item #5)
 
 ```bash

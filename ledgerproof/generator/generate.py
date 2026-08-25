@@ -96,9 +96,11 @@ class Generator:
         return {bt: round(total * frac) for bt, frac in self.cfg.breaks.items()}
 
     # ---- phase 3+4: settlements, credits, ledger, breaks ---------------------
-    def generate(self) -> GeneratedDataset:
+    def generate(self, payments: list[Payment] | None = None) -> GeneratedDataset:
+        # `payments` lets an adapter inject externally-sourced captures (real public data); the rest
+        # of the pipeline — settlements, bank credits, mess, ground truth — is derived as usual.
         cfg = self.cfg
-        payments = self._gen_payments()
+        payments = self._gen_payments() if payments is None else list(payments)
         by_id = {p.payment_id: p for p in payments}
         budget = self._budget()
 
