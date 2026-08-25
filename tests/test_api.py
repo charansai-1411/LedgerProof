@@ -69,6 +69,32 @@ def test_dataset_endpoint(client):
     assert d["current"]["has_ground_truth"] is True
 
 
+def test_cycles_endpoint(client):
+    c = client.get("/api/cycles").json()
+    assert c["cycles"] and c["settlement_volume"] > 0
+    first = c["cycles"][0]
+    for k in ("cycle_id", "date", "gross", "net", "match_rate", "issues"):
+        assert k in first
+
+
+def test_exception_workspace_payload(client):
+    creds = client.get("/api/credits").json()
+    bid = next((x["bank_txn_id"] for x in creds if x["kind"] != "clean UTR"), creds[0]["bank_txn_id"])
+    d = client.get(f"/api/exception/{bid}").json()
+    assert d["bank_txn_id"] == bid
+    assert d["source"]["bank"]["amount"] > 0
+    assert len(d["path"]) == 6 and d["path"][0]["step"] == "MATCH FAILED"
+    assert "verified" in d["verification"] and "decision" in d["governor"]
+    assert d["audit"] and d["trace"]
+    assert client.get("/api/exception/bank_nope").status_code == 404
+
+
+def test_transaction_has_fee_breakdown(client):
+    pid = client.get("/api/samples").json()["payment_ids"][0]
+    b = client.get(f"/api/transaction/{pid}").json()["breakdown"]
+    assert b and b["gross"] - b["net"] == b["difference"]
+
+
 def test_live_agent_trace_streams(client):
     creds = client.get("/api/credits").json()
     assert creds

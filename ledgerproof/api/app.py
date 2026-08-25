@@ -89,6 +89,17 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def tax() -> dict:
         return svc().tax_report()
 
+    @app.get("/api/cycles")
+    def cycles() -> dict:
+        return svc().cycles()
+
+    @app.get("/api/exception/{bank_txn_id}")
+    def exception_detail(bank_txn_id: str) -> dict:
+        d = svc().exception_detail(bank_txn_id)
+        if d is None:
+            raise HTTPException(status_code=404, detail=f"no bank credit '{bank_txn_id}'")
+        return d
+
     @app.get("/api/qa")
     def qa(q: str) -> dict:
         return svc().ask(q)

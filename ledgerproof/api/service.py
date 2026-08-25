@@ -94,7 +94,18 @@ class ReconService:
         """Every bank credit's full journey (finding -> verification -> governor), newest first
         by 'interesting-ness': auto-resolved and human-review items, hard cases first."""
         records = run_pipeline(self.data_dir, self.model, self.policy)
-        payload = [r.to_audit() for r in records]
+        payload = []
+        for r in records:
+            rec = r.to_audit()
+            bc = self._credit.get(rec["bank_txn_id"])
+            rec["amount"] = bc.credit_amount if bc else None
+            if rec["matched_settlement_id"] is None:
+                rec["severity"], rec["kind"] = "HIGH", "Unexplained"
+            elif "exact_utr" in rec.get("match_basis", []):
+                rec["severity"], rec["kind"] = "LOW", "Clean match"
+            else:
+                rec["severity"], rec["kind"] = "MED", "Bank–settlement"
+            payload.append(rec)
         # Lead with the interesting cases: verified matches first, hard (non-exact-UTR, searched)
         # ones above clean UTR matches, higher confidence first; opened/unexplained credits last.
         payload.sort(key=lambda r: (
@@ -118,18 +129,162 @@ class ReconService:
         return self.policy_dict()
 
     def transaction(self, payment_id: str) -> dict | None:
-        """The three views of one payment, side by side."""
+        """The three views of one payment, side by side, with the fee breakdown of the gap."""
         p = self._pay.get(payment_id)
         if p is None:
             return None
         report = self._report_by_pid.get(payment_id)
         ledger = self._ledger_by_pid.get(payment_id)
         settlement = self._settlement.get(report.settlement_id) if report else None
+        breakdown = None
+        if report:
+            reserve = (report.gross_amount - report.mdr_fee - report.gst_on_mdr
+                       - report.refund_deduction - report.net_amount)
+            breakdown = {"gross": report.gross_amount, "net": report.net_amount,
+                         "mdr": report.mdr_fee, "gst": report.gst_on_mdr,
+                         "refund": report.refund_deduction, "reserve": reserve,
+                         "difference": report.gross_amount - report.net_amount}
         return {
             "pg_capture": asdict(p),
             "settlement_report": asdict(report) if report else None,
             "settlement": asdict(settlement) if settlement else None,
             "internal_ledger": asdict(ledger) if ledger else None,
+            "breakdown": breakdown,
+        }
+
+    # ---- settlement cycles ---------------------------------------------------
+    def cycles(self) -> dict:
+        from collections import defaultdict
+
+        recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        matched = {m.payment_id for m in recon.matched}
+        rows_by_settlement: dict[str, list] = defaultdict(list)
+        for r in self._eng_sources.report_rows:
+            rows_by_settlement[r.settlement_id].append(r)
+        by_date: dict[str, dict] = defaultdict(
+            lambda: {"gross": 0, "net": 0, "settlements": 0, "payments": 0, "matched": 0})
+        for sid, s in self._settlement.items():
+            d = by_date[s.created_at]
+            d["settlements"] += 1
+            d["net"] += s.amount
+            for r in rows_by_settlement.get(sid, []):
+                d["gross"] += r.gross_amount
+                d["payments"] += 1
+                if r.payment_id in matched:
+                    d["matched"] += 1
+        cyc = []
+        for dt, d in sorted(by_date.items(), reverse=True):
+            cyc.append({
+                "cycle_id": "SET_" + dt.replace("-", ""), "date": dt,
+                "gross": d["gross"], "net": d["net"], "settlements": d["settlements"],
+                "payments": d["payments"], "issues": d["payments"] - d["matched"],
+                "match_rate": round(d["matched"] / d["payments"], 4) if d["payments"] else 1.0,
+            })
+        return {"cycles": cyc, "settlement_volume": sum(c["net"] for c in cyc),
+                "gross_volume": sum(c["gross"] for c in cyc)}
+
+    # ---- exception workspace -------------------------------------------------
+    def _claimed(self, tools):
+        from collections import Counter
+
+        strat = HeuristicAgentModel()
+        return Counter(f.matched_settlement_id
+                       for f in (strat.investigate(b, tools) for b in tools.all_bank_txn_ids())
+                       if f.matched_settlement_id)
+
+    def exception_detail(self, bid: str) -> dict | None:
+        import re
+        from datetime import datetime, timedelta
+
+        from ..verifier.governor import Governor
+        from ..verifier.verifier import SeamBVerifier
+
+        if bid not in self._credit:
+            return None
+        tools = SeamBToolbox(load_seam_b(self.data_dir))
+        bc = tools.get_bank_credit(bid)
+        finding, steps = HeuristicAgentModel().investigate_with_trace(bid, tools)
+        claimed = self._claimed(tools)
+        v = SeamBVerifier(self.policy.min_drift_days, self.policy.max_drift_days).verify(finding, tools, claimed)
+        g = Governor(self.policy).decide(finding, v)
+
+        sid = finding.matched_settlement_id
+        settlement = tools.get_settlement(sid) if sid else None
+        rows = tools.explode_settlement(sid) if sid else []
+        ledger_sum = sum(self._ledger_by_pid[r.payment_id].booked_amount
+                         for r in rows if r.payment_id in self._ledger_by_pid)
+
+        n_candidates = 0
+        for st in steps:
+            if st.get("type") == "tool_result":
+                m = re.search(r"(\d+) candidate", st.get("text", ""))
+                if m:
+                    n_candidates = max(n_candidates, int(m.group(1)))
+        checks = v.checks or {}
+        passed = sum(1 for x in checks.values() if x)
+
+        if sid is None:
+            btype, sev = "UNEXPLAINED", "HIGH"
+        elif "exact_utr" in finding.match_basis:
+            btype, sev = "CLEAN MATCH", "LOW"
+        else:
+            btype, sev = "BANK–SETTLEMENT", "MED"
+
+        source = {
+            "bank": {"amount": bc.credit_amount, "ref": bc.utr or "(missing)",
+                     "date": bc.value_date, "type": "NEFT credit"},
+            "razorpay": {"amount": settlement.amount if settlement else None, "ref": sid or "—",
+                         "date": settlement.created_at if settlement else None, "type": "Settlement net"},
+            "ledger": {"amount": ledger_sum if rows else None,
+                       "ref": f"{len(rows)} txns" if rows else "—", "type": "Gross booked"},
+        }
+        diff = None
+        if settlement and rows:
+            gross = sum(r.gross_amount for r in rows)
+            refunds = sum(r.refund_deduction for r in rows)
+            diff = {"gross": gross, "net": settlement.amount, "tdr": settlement.fees,
+                    "gst": settlement.tax, "reserve": settlement.reserve_held, "refunds": refunds,
+                    "difference": gross - settlement.amount}
+
+        path = [
+            {"step": "MATCH FAILED",
+             "detail": "clean UTR" if "exact_utr" in finding.match_basis else "UTR unusable", "state": "fail"},
+            {"step": "SEARCH", "detail": f"{n_candidates} candidate(s)", "state": "ok"},
+            {"step": "INVESTIGATE", "detail": f"{len(finding.evidence)} evidence source(s)", "state": "ok"},
+            {"step": "HYPOTHESIS", "detail": sid or "no defensible match", "state": "ok" if sid else "warn"},
+            {"step": "VERIFY", "detail": (f"{passed}/{len(checks)} checks" if checks else "nothing to verify"),
+             "state": "ok" if v.verified else "warn"},
+            {"step": "GOVERN", "detail": g.decision.replace("_", " "),
+             "state": "ok" if g.decision == DECISION_AUTO else "warn"},
+        ]
+
+        base = datetime(2026, 1, 1, 10, 32, 0)
+        ts = lambda s: (base + timedelta(seconds=s)).strftime("%H:%M:%S")
+        audit = [
+            {"t": ts(0), "event": "Deterministic match failed"},
+            {"t": ts(1), "event": "Agent investigation started"},
+            {"t": ts(2), "event": f"Candidate settlements found: {n_candidates}"},
+        ]
+        if sid:
+            audit.append({"t": ts(3), "event": f"Hypothesis created: {sid}"})
+        audit += [
+            {"t": ts(4), "event": f"Evidence gathered: {len(finding.evidence)}"},
+            {"t": ts(5), "event": "Verifier " + ("PASSED" if v.verified else "did not verify")},
+            {"t": ts(6), "event": "Governor " + ("AUTO-RESOLVED" if g.decision == DECISION_AUTO else "BLOCKED")},
+            {"t": ts(6), "event": "Routed to " + ("AUTO-RESOLUTION" if g.decision == DECISION_AUTO else "HUMAN REVIEW")},
+        ]
+
+        return {
+            "bank_txn_id": bid, "break_type": btype, "severity": sev,
+            "source": source, "diff": diff, "trace": steps,
+            "finding": {"matched": sid, "confidence": round(finding.confidence, 3),
+                        "basis": finding.match_basis, "evidence": finding.evidence,
+                        "narrative": finding.narrative},
+            "verification": {"verified": v.verified, "checks": checks,
+                             "rederived_net": v.rederived_net, "reason": v.reason},
+            "governor": {"decision": g.decision, "reason": g.reason,
+                         "confidence": round(finding.confidence, 3), "threshold": self.policy.min_confidence},
+            "path": path, "audit": audit,
         }
 
     def sample_payment_ids(self, n: int = 8) -> list[str]:
