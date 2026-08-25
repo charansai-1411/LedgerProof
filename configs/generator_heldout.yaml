@@ -1,0 +1,35 @@
+# Held-out evaluation set: a DIFFERENT seed and an UNSEEN break mix, so reported metrics are not
+# fit to the data the system was tuned on. This is the honest-measurement config (PRD section 5).
+
+seed: 20270905
+run_name: heldout
+merchant_id: mrc_demo
+
+n_payments: 5000
+n_cycles: 30                   # different cadence
+settlement_delay_days: 2
+base_date: "2026-09-01"
+
+method_mix:                    # different mix
+  upi: 0.48
+  card: 0.34
+  netbanking: 0.12
+  wallet: 0.06
+
+refund_rate: 0.11              # heavier refunds
+
+exception_rate: 0.075          # unseen exception density
+
+breaks:                        # unseen break mix
+  compound_variance: 0.45
+  timing_in_transit: 0.35
+  duplicate:         0.08
+  unexplained:       0.12
+
+seam_b_match_rate: 0.32        # more hard Seam-B matches
+
+seam_b_mess:                   # harsher Seam-B noise
+  utr_garbled_rate: 0.45
+  utr_missing_rate: 0.15
+  same_day_collision_rate: 0.50
+  date_drift_days: [0, 1, 2, 3]

@@ -107,13 +107,36 @@ With auto-resolve off, all 35 verified matches are still **held for human review
 `bank_settlement_match` on the allowlist auto-resolves the 35 and routes the 45 unexplained credits
 to human review.
 
+## Report card on the held-out set (Item #5)
+
+```bash
+python -m ledgerproof.generator --config configs/generator_heldout.yaml   # different seed + unseen break mix
+python -m ledgerproof.metrics --data data/heldout --enable-auto --allow bank_settlement_match --min-confidence 0.95
+```
+
+Runs the whole loop end-to-end and grades it against the hidden ground truth. On the held-out set
+(seed and break mix the system never saw):
+
+```
+CARDINAL  combined false-match rate : 0.0  (0 wrong of 4745 asserted)   PASS
+Seam A   4700/5000 payments (94.0%)  0 false   partial/timing recall 100%  dupes 30/30
+Seam B   47/47 credits matched (hero 15/15)  0 false   45 unexplained opened
+Governance  47 verified · 45 auto-resolved (0 wrong) · 47 human queue (precision 96%)
+Throughput  ~66,000 records/s
+```
+
+The headline is not a single match rate — it is the full, honest picture, with **false-match rate
+as the cardinal number**. (Two verified hero credits with *missing* UTRs scored below the 0.95
+confidence threshold, so the governor correctly held them for human review — controlled autonomy at
+work, and why human-queue precision is 96% not 100%.)
+
 ## Status
 
 - [x] Synthetic data generator with ground-truth key
-- [x] Deterministic matching engine (Seam A) — 95.2% match rate, **0 false matches**
-- [x] Exception agent — bank-credit ↔ settlement matching (Seam B) — 9/9 hero, **0 false matches** *(heuristic + Gemini/Vertex, verified live)*
+- [x] Deterministic matching engine (Seam A) — 94% match rate, **0 false matches**
+- [x] Exception agent — bank-credit ↔ settlement matching (Seam B) — 15/15 hero on held-out, **0 false matches** *(heuristic + Gemini/Vertex, verified live)*
 - [x] Deterministic verifier + governor — re-derives each match; controlled autonomy off by default; **never confirms a wrong match**
-- [ ] Honest metrics harness on the held-out set
+- [x] Honest metrics harness on the held-out set — **combined false-match rate 0.0** across 4,745 asserted reconciliations
 - [ ] *Stretch:* resolved-pattern cache · dashboard · Cloud Run deploy
 
 ## Requirements
