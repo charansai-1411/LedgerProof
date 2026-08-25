@@ -1,0 +1,4 @@
+# Optional — only needed to run the Gemini-on-Vertex agent model.
+# The core (generator, engine, heuristic Seam-B agent) runs without this.
+#   pip install -r requirements-agent.txt
+google-genai>=0.3

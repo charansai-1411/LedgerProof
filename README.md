@@ -70,11 +70,29 @@ Reconciles settlement report ↔ ledger per transaction, re-deriving every deduc
 clears **95.2%** with a **false-match rate of 0.0** — the cardinal metric — and hands the residue
 (compound partial-payments and timing/in-transit) onward as categorized exceptions.
 
+## Run the exception agent (Seam B — the hero task)
+
+```bash
+python -m ledgerproof.agent --data data/dev --model heuristic   # deterministic, no API
+python -m ledgerproof.agent --data data/dev --model gemini      # Gemini on Vertex AI
+```
+
+Matches each lumped bank credit to the right settlement when the UTR is garbled/missing/shared,
+the value date drifts, and same-day settlements collide — searching candidate settlements in the
+window and reconciling on the net-amount envelope, opening a credit as *unexplained* rather than
+forcing a match. On the default dataset: **9/9 hero credits matched, 45/45 unexplained correctly
+opened, false-match rate 0.0.**
+
+The model sits behind a swappable `AgentModel` interface:
+- `heuristic` — deterministic baseline / no-API fallback (always runs).
+- `gemini` — Gemini on Vertex AI. Needs `pip install -r requirements-agent.txt`, the Vertex AI API
+  enabled, and `gcloud auth application-default login` (project `ledgerproof-506605`, `us-central1`).
+
 ## Status
 
 - [x] Synthetic data generator with ground-truth key
 - [x] Deterministic matching engine (Seam A) — 95.2% match rate, **0 false matches**
-- [ ] Tool-using exception agent — bank-credit ↔ settlement matching (Seam B, the hero task)
+- [x] Exception agent — bank-credit ↔ settlement matching (Seam B) — 9/9 hero, **0 false matches** *(heuristic; Gemini/Vertex behind the same interface)*
 - [ ] Deterministic verifier + governor
 - [ ] Honest metrics harness on the held-out set
 - [ ] *Stretch:* resolved-pattern cache · dashboard · Cloud Run deploy

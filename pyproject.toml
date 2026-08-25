@@ -11,6 +11,7 @@ dependencies = ["PyYAML>=6.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+agent = ["google-genai>=0.3"]  # Gemini-on-Vertex exception agent (Seam B)
 
 [tool.setuptools.packages.find]
 include = ["ledgerproof*"]
