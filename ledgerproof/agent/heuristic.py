@@ -41,18 +41,18 @@ class HeuristicAgentModel(AgentModel):
             )
 
         # 2. Search path: candidate settlements in the plausible window, reconcile on amount.
-        for before, after, base_conf in ((2, 0, 0.93), (3, 1, 0.82)):
+        for before, after in ((2, 0), (3, 1)):
             candidates = tools.get_settlements_in_window(bc.value_date, before, after)
             exact = [c for c in candidates if c.amount == bc.credit_amount]
             if len(exact) == 1:
                 cand = exact[0]
+                others = [c for c in candidates if c is not cand]
                 basis = ["date_window", "net_amount"]
-                conf = base_conf
-                # a matching UTR prefix is a corroborating (not decisive) signal
                 if bc.utr and cand.utr[:8] == bc.utr[:8]:
                     basis.append("utr_prefix")
-                    conf = min(0.97, conf + 0.03)
-                others = [c for c in candidates if c is not cand]
+                # confidence reflects real signal strength: how far the nearest rival amount is,
+                # UTR corroboration, date drift, and whether we had to widen the window.
+                conf = self._confidence(bc, cand, others, widened=(before == 3))
                 return AgentFinding(
                     bank_txn_id=bank_txn_id,
                     matched_settlement_id=cand.settlement_id,
@@ -90,6 +90,25 @@ class HeuristicAgentModel(AgentModel):
             ),
         )
 
+    @staticmethod
+    def _confidence(bc, cand, others, widened: bool) -> float:
+        """A calibrated confidence in [0.55, 0.99] from real signals — not a constant."""
+        from datetime import date
+
+        base = 0.72 if widened else 0.84
+        if others:
+            nearest = min(abs(c.amount - bc.credit_amount) for c in others)
+            base += min(0.11, (nearest / max(bc.credit_amount, 1)) * 0.6)  # bigger margin -> more sure
+        else:
+            base += 0.08  # sole candidate in the window
+        if bc.utr and cand.utr[:8] == bc.utr[:8]:
+            base += 0.05
+        elif bc.utr and cand.utr[:4] == bc.utr[:4]:
+            base += 0.02
+        drift = (date.fromisoformat(bc.value_date) - date.fromisoformat(cand.created_at)).days
+        base -= min(0.06, max(0, drift - 1) * 0.02)
+        return round(min(0.99, max(0.55, base)), 2)
+
     # ---- traced variant (for the live agent view) ----------------------------
     def investigate_with_trace(self, bank_txn_id: str, tools: SeamBToolbox):
         """Return (finding, [trace steps]) narrating the deterministic investigation."""
@@ -119,8 +138,10 @@ class HeuristicAgentModel(AgentModel):
             exact = [c for c in cands if c.amount == bc.credit_amount]
             for c in cands[:8]:
                 d = c.amount - bc.credit_amount
-                steps.append({"type": "eval", "match": d == 0,
-                              "text": f"{c.settlement_id}: net {_rs(c.amount)}   Δ {_rs(d)}"})
+                score = round(max(0.0, 1 - abs(d) / max(bc.credit_amount, 1)), 2)
+                steps.append({"type": "eval", "match": d == 0, "score": score,
+                              "settlement_id": c.settlement_id,
+                              "text": f"{c.settlement_id}: net {_rs(c.amount)}   Δ {_rs(d)}   score {score:.2f}"})
             if finding.matched_settlement_id and any(c.settlement_id == finding.matched_settlement_id for c in exact):
                 matched_here = True
         if finding.matched_settlement_id:

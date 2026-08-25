@@ -20,13 +20,10 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  a{color:var(--accent);text-decoration:none}
-  .mono{font-family:var(--mono)}
+  a{color:var(--accent);text-decoration:none} .mono{font-family:var(--mono)}
   button{font-family:inherit}
 
-  /* ---- topbar ---- */
-  .topbar{height:52px;display:flex;align-items:center;gap:16px;padding:0 18px;background:var(--panel);
-    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .topbar{height:52px;display:flex;align-items:center;gap:16px;padding:0 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
   .brand{font-weight:700;font-size:15px;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}
   .brand .dot{width:8px;height:8px;border-radius:3px;background:var(--accent)}
   .topbar .spacer{flex:1}
@@ -34,15 +31,13 @@
   select,.btn{font-size:13px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 11px;cursor:pointer}
   select:hover,.btn:hover{border-color:#d3d7dd}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:560}
-  .btn.primary:hover{filter:brightness(1.06)}
-  .btn.sm{padding:5px 9px;font-size:12px}
-  .live{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--green);font-weight:600;letter-spacing:.03em}
-  .live .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(15,157,107,.5);animation:pulse 2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(15,157,107,.45)}70%{box-shadow:0 0 0 6px rgba(15,157,107,0)}100%{box-shadow:0 0 0 0 rgba(15,157,107,0)}}
+  .btn.primary:hover{filter:brightness(1.06)} .btn.sm{padding:5px 9px;font-size:12px}
+  .gov-status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:5px 11px;border:1px solid var(--line);border-radius:8px}
+  .gov-status .shield{color:var(--muted)} .gov-status b{color:var(--ink);font-weight:600}
+  .gov-status.on .shield{color:var(--green)}
 
-  /* ---- layout ---- */
   .app{display:flex;min-height:calc(100vh - 52px)}
-  .side{width:212px;flex:none;background:var(--panel);border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:52px;height:calc(100vh - 52px);overflow:auto}
+  .side{width:214px;flex:none;background:var(--panel);border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:52px;height:calc(100vh - 52px);overflow:auto}
   .side .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.11em;color:var(--faint);margin:16px 8px 6px;font-weight:650}
   .side .grp:first-child{margin-top:2px}
   .nav{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:13px;font-weight:500}
@@ -51,170 +46,149 @@
   .nav .ic{width:15px;text-align:center;opacity:.85;font-size:13px}
   .nav.sub{padding-left:22px;font-size:12.5px}
   main{flex:1;min-width:0;padding:24px 28px 60px}
-  .view{display:none;animation:fade .2s ease}
-  .view.show{display:block}
+  .view{display:none;animation:fade .2s ease} .view.show{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 
-  /* ---- headers ---- */
   .phead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
   .phead h1{font-size:19px;margin:0 0 3px;letter-spacing:-.3px}
-  .phead .sub{color:var(--muted);font-size:12.5px}
-  .phead .sub b{color:var(--ink);font-weight:600}
+  .phead .sub{color:var(--muted);font-size:12.5px} .phead .sub b{color:var(--ink);font-weight:600}
   h2.sec{font-size:11px;text-transform:uppercase;letter-spacing:.11em;color:var(--faint);font-weight:650;margin:26px 0 11px}
+  .lead{color:var(--muted);max-width:640px;margin:-8px 0 18px}
+  .muted{color:var(--muted)} .err{color:var(--red)} .empty{padding:36px;text-align:center;color:var(--faint)}
 
-  /* ---- metric cards ---- */
-  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
-  @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
-  .metric{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px;box-shadow:var(--shadow)}
-  .metric .lab{font-size:11.5px;color:var(--muted);font-weight:500}
-  .metric .val{font-size:26px;font-weight:680;letter-spacing:-.6px;margin-top:7px;font-variant-numeric:tabular-nums}
-  .metric .hint{font-size:11px;color:var(--faint);margin-top:3px}
-  .metric.trust{border-color:var(--green-line);background:linear-gradient(180deg,var(--green-bg),var(--panel) 70%)}
-  .metric.trust .val{color:var(--green);display:flex;align-items:center;gap:8px}
-  .metric.trust .val .chk{font-size:18px}
-  .subrow{display:flex;gap:26px;margin-top:14px;padding:12px 17px;background:var(--panel);border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
-  .subrow .kv{display:flex;flex-direction:column}
-  .subrow .kv .l{font-size:11px;color:var(--muted)}
-  .subrow .kv .v{font-size:16px;font-weight:640;font-variant-numeric:tabular-nums;margin-top:2px}
+  /* metric hierarchy */
+  .hero{background:linear-gradient(180deg,var(--green-bg),var(--panel) 78%);border:1px solid var(--green-line);border-radius:14px;
+    padding:20px 24px;display:flex;align-items:center;gap:22px;box-shadow:var(--shadow)}
+  .hero .big{font-size:52px;font-weight:750;letter-spacing:-2px;color:var(--green);line-height:1;display:flex;align-items:center;gap:12px}
+  .hero .big .chk{font-size:30px}
+  .hero .txt .k{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--green);font-weight:700}
+  .hero .txt .d{font-size:13px;color:var(--muted);margin-top:5px;max-width:420px}
+  .hero.warn{background:linear-gradient(180deg,var(--red-bg),var(--panel) 78%);border-color:var(--red-line)}
+  .hero.warn .big,.hero.warn .txt .k{color:var(--red)}
+  .m2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:13px}
+  .card2{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;box-shadow:var(--shadow)}
+  .card2 .lab{font-size:11.5px;color:var(--muted)}
+  .card2 .val{font-size:27px;font-weight:680;letter-spacing:-.6px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .card2 .hint{font-size:11.5px;color:var(--faint);margin-top:3px}
+  .m4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:11px}
+  @media(max-width:820px){.m2,.m4{grid-template-columns:1fr 1fr}}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .chip .l{font-size:11px;color:var(--muted)} .chip .v{font-size:18px;font-weight:640;font-variant-numeric:tabular-nums;margin-top:3px}
 
-  /* ---- tables ---- */
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
   table{width:100%;border-collapse:collapse;font-size:13px}
-  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;
-    padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
-  tbody td{padding:12px 16px;border-bottom:1px solid var(--line2);vertical-align:middle}
-  tbody tr:last-child td{border-bottom:0}
-  tbody tr.click{cursor:pointer}
-  tbody tr.click:hover{background:var(--panel2)}
+  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
+  tbody td{padding:12px 16px;border-bottom:1px solid var(--line2);vertical-align:middle} tbody tr:last-child td{border-bottom:0}
+  tbody tr.click{cursor:pointer} tbody tr.click:hover{background:var(--panel2)}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-  .tag{font-family:var(--mono);font-size:12px;color:var(--muted)}
-  .bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;width:74px;display:inline-block;vertical-align:middle;margin-right:8px}
-  .bar > i{display:block;height:100%;background:var(--green);border-radius:4px}
+  .amt{font-variant-numeric:tabular-nums;font-weight:600}
+  .id{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .flow{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;width:72px;display:inline-block;vertical-align:middle;margin-right:8px}
+  .bar>i{display:block;height:100%;background:var(--green);border-radius:4px}
 
-  /* pills */
   .pill{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;border:1px solid;white-space:nowrap;letter-spacing:.02em}
   .pill.high{color:var(--red);background:var(--red-bg);border-color:var(--red-line)}
   .pill.med{color:var(--amber);background:var(--amber-bg);border-color:var(--amber-line)}
   .pill.low{color:var(--muted);background:var(--panel2);border-color:var(--line)}
   .pill.auto{color:var(--green);background:var(--green-bg);border-color:var(--green-line)}
-  .pill.human{color:var(--amber);background:var(--amber-bg);border-color:var(--amber-line)}
+  .pill.human,.pill.flagged,.pill.review{color:var(--amber);background:var(--amber-bg);border-color:var(--amber-line)}
   .sev-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px}
   .sev-dot.high{background:var(--red)} .sev-dot.med{background:var(--amber)} .sev-dot.low{background:var(--faint)}
 
-  /* ---- workspace ---- */
+  /* workspace: timeline rail + detail */
   .ws-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
-  .ws-head .back{color:var(--muted);cursor:pointer;font-size:13px}
-  .ws-head .back:hover{color:var(--ink)}
-  .ws-head .id{font-family:var(--mono);font-size:15px;font-weight:640}
-  .ws-cols{display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:14px}
-  @media(max-width:1080px){.ws-cols{grid-template-columns:1fr}}
+  .ws-head .back{color:var(--muted);cursor:pointer;font-size:13px} .ws-head .back:hover{color:var(--ink)}
+  .ws-head .idh{font-family:var(--mono);font-size:15px;font-weight:640}
+  .ws-grid{display:grid;grid-template-columns:210px 1fr;gap:20px}
+  @media(max-width:900px){.ws-grid{grid-template-columns:1fr}}
+  .timeline{position:relative;padding-left:6px}
+  .tnode{position:relative;padding:0 0 4px 26px;min-height:46px}
+  .tnode::before{content:"";position:absolute;left:6px;top:16px;bottom:-6px;width:2px;background:var(--line)}
+  .tnode:last-child::before{display:none}
+  .tnode .dot{position:absolute;left:0;top:5px;width:14px;height:14px;border-radius:50%;background:var(--panel);border:2px solid var(--faint)}
+  .tnode.head .dot{border-color:var(--accent);background:var(--accent)}
+  .tnode.ok .dot{border-color:var(--green);background:var(--green)}
+  .tnode.fail .dot{border-color:var(--red);background:var(--red)}
+  .tnode.warn .dot{border-color:var(--amber);background:var(--amber)}
+  .tnode .n{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--ink)}
+  .tnode.fail .n{color:var(--red)} .tnode.warn .n{color:var(--amber)} .tnode.ok .n{color:var(--ink)}
+  .tnode .d{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+  .detcols{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:14px}
+  @media(max-width:1080px){.detcols{grid-template-columns:1fr}}
   .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 17px;box-shadow:var(--shadow)}
   .col h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.11em;color:var(--faint);font-weight:650;margin:0 0 13px}
   .srec{border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:var(--panel2)}
   .srec .top{display:flex;justify-content:space-between;align-items:baseline}
-  .srec .who{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:650}
-  .srec .amt{font-family:var(--mono);font-size:15px;font-weight:640}
-  .srec .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:4px}
+  .srec .who{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:650}
+  .srec .a{font-family:var(--mono);font-size:15px;font-weight:640}
+  .srec .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+  .arrow{text-align:center;color:var(--faint);font-size:15px;line-height:1;margin:-3px 0 6px}
   .diff{margin-top:6px;border:1px dashed var(--line);border-radius:9px;padding:11px 13px}
-  .diff .dhead{text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px}
-  .diff .dhead b{font-family:var(--mono);color:var(--ink);font-size:14px}
-  .diff .drow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:2px 0;color:var(--muted)}
-  .diff .drow b{color:var(--ink);font-weight:600}
+  .diff .dhead{text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px} .diff .dhead b{font-family:var(--mono);color:var(--ink);font-size:14px}
+  .diff .drow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:2px 0;color:var(--muted)} .diff .drow b{color:var(--ink);font-weight:600}
 
-  /* trace console */
-  .trace{font-family:var(--mono);font-size:12px;line-height:1.75}
+  .trace{font-family:var(--mono);font-size:12px;line-height:1.72}
   .tl{display:flex;gap:8px;padding:2px 0;opacity:0;transform:translateY(2px);animation:tin .25s forwards}
   @keyframes tin{to{opacity:1;transform:none}}
   .tl .mk{flex:none;width:14px;text-align:center}
-  .tl.ok .mk{color:var(--green)} .tl.call .mk{color:var(--accent)} .tl.warn .mk{color:var(--amber)}
-  .tl.call .b{color:var(--ink)}
-  .tl.dim{color:var(--muted)}
+  .tl.ok .mk{color:var(--green)} .tl.call .mk{color:var(--accent)} .tl.warn .mk{color:var(--amber)} .tl.dim{color:var(--muted)}
+  .tl.eval .sc{margin-left:auto;color:var(--faint)} .tl.eval.hit .sc{color:var(--green);font-weight:600}
   .finding{margin-top:12px;border-top:1px solid var(--line2);padding-top:12px}
   .finding .fl{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
-  .finding .ft{font-size:14px;font-weight:640;margin-top:3px}
-  .finding .fc{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:4px}
+  .finding .ft{font-size:14px;font-weight:640;margin-top:3px} .finding .fc{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:4px}
+  .reasonbox{font-size:13px;color:var(--ink);line-height:1.6}
 
-  /* verify */
   .chk{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0}
   .chk .m{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:11px;flex:none}
   .chk.ok .m{background:var(--green-bg);color:var(--green)} .chk.no .m{background:var(--red-bg);color:var(--red)}
   .chk .k{font-family:var(--mono);color:var(--muted)}
-  .rederived{margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--muted)}
-  .rederived b{color:var(--ink)}
+  .rederived{margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--muted)} .rederived b{color:var(--ink)}
   .gov{margin-top:16px;border-top:1px solid var(--line2);padding-top:14px}
-  .gov .conf{display:flex;align-items:baseline;gap:8px}
-  .gov .conf .big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
-  .gov .thr{font-size:12px;color:var(--muted);margin-top:2px}
-  .gov .decision{margin-top:11px}
-  .gov .why{font-size:12px;color:var(--muted);margin-top:8px}
+  .gov .conf{display:flex;align-items:baseline;gap:8px} .gov .conf .big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+  .gov .thr{font-size:12px;color:var(--muted);margin-top:2px} .gov .decision{margin-top:11px} .gov .why{font-size:12px;color:var(--muted);margin-top:8px}
 
-  /* investigation path */
-  .pathwrap{margin-top:20px}
-  .path{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
-  .pnode{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px;position:relative}
-  .pnode + .pnode{margin-left:26px}
-  .pnode + .pnode::before{content:"→";position:absolute;left:-21px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:14px}
-  .pnode .s{font-size:10.5px;font-weight:700;letter-spacing:.05em;color:var(--ink)}
-  .pnode .d{font-size:11.5px;color:var(--muted);margin-top:3px;font-family:var(--mono)}
-  .pnode.fail{border-color:var(--red-line);background:var(--red-bg)}
-  .pnode.fail .s{color:var(--red)}
-  .pnode.ok{border-color:var(--green-line)}
-  .pnode.ok .s{color:var(--green)}
-  .pnode.warn{border-color:var(--amber-line);background:var(--amber-bg)}
-  .pnode.warn .s{color:var(--amber)}
-
-  /* drawer */
-  .drawer-bg{position:fixed;inset:0;background:rgba(20,24,32,.28);opacity:0;pointer-events:none;transition:.2s;z-index:40}
-  .drawer-bg.show{opacity:1;pointer-events:auto}
-  .drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:92vw;background:var(--panel);border-left:1px solid var(--line);
-    transform:translateX(100%);transition:.24s cubic-bezier(.4,0,.2,1);z-index:41;padding:20px;overflow:auto;box-shadow:-8px 0 24px rgba(20,24,32,.08)}
-  .drawer.show{transform:none}
-  .drawer h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin:0 0 4px}
-  .drawer .x{position:absolute;top:16px;right:18px;cursor:pointer;color:var(--muted);font-size:18px}
-  .audit{margin-top:16px}
-  .arow{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line2);font-size:12.5px}
-  .arow:last-child{border-bottom:0}
-  .arow .at{font-family:var(--mono);color:var(--faint);flex:none}
-  .arow .ae{color:var(--ink)}
-  .arow.pass .ae{color:var(--green);font-weight:600}
-  .arow.block .ae{color:var(--amber);font-weight:600}
+  /* vertical source-of-truth */
+  .sot-v{max-width:360px;margin:0 auto}
+  .sot-node{border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:center;background:var(--panel);box-shadow:var(--shadow)}
+  .sot-node .who{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);font-weight:650}
+  .sot-node .a{font-family:var(--mono);font-size:22px;font-weight:680;margin-top:4px}
+  .sot-node .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+  .sot-arrow{text-align:center;color:var(--faint);font-size:18px;margin:6px 0}
+  .sot-diff{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:14px 16px;max-width:360px;margin-left:auto;margin-right:auto}
 
   /* governor / settings */
-  .panelbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);max-width:520px}
-  .row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line2)}
-  .row:last-of-type{border-bottom:0}
-  .row .l{font-size:13px}
-  .row .sub{font-size:11.5px;color:var(--muted);margin-top:1px}
-  .switch{position:relative;width:40px;height:22px;flex:none}
-  .switch input{opacity:0;width:0;height:0}
+  .panelbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);max-width:560px}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line2)} .row:last-of-type{border-bottom:0}
+  .row .l{font-size:13px} .row .sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .switch{position:relative;width:40px;height:22px;flex:none} .switch input{opacity:0;width:0;height:0}
   .switch .sl{position:absolute;inset:0;background:#d7dbe1;border-radius:20px;transition:.15s;cursor:pointer}
   .switch .sl::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
-  .switch input:checked + .sl{background:var(--green)}
-  .switch input:checked + .sl::before{transform:translateX(18px)}
+  .switch input:checked + .sl{background:var(--green)} .switch input:checked + .sl::before{transform:translateX(18px)}
   input[type=range]{accent-color:var(--accent)}
   .cat{display:flex;align-items:center;gap:9px;padding:7px 0;font-size:13px}
   .cat .box{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line);display:grid;place-items:center;cursor:pointer;color:#fff;font-size:11px}
-  .cat .box.on{background:var(--green);border-color:var(--green)}
-  .cat .box.fixed{background:var(--line);border-color:var(--line);color:var(--faint);cursor:default}
+  .cat .box.on{background:var(--green);border-color:var(--green)} .cat .box.fixed{background:var(--line);border-color:var(--line);color:var(--faint);cursor:default}
   .cat .lock{margin-left:auto;font-size:11px;color:var(--faint)}
 
-  .lead{color:var(--muted);max-width:640px;margin:-8px 0 18px}
-  .muted{color:var(--muted)} .err{color:var(--red)}
-  .empty{padding:40px;text-align:center;color:var(--faint)}
   .ask{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .ask input,.lookup input{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--panel);color:var(--ink)}
-  .answer{margin-top:14px;padding:13px 15px;border-left:3px solid var(--accent);background:var(--panel2);border-radius:8px;display:none}
-  .answer.show{display:block}
-  .console{margin-top:14px;background:#0f1320;border:1px solid #1d2536;border-radius:12px;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.7;min-height:120px;max-height:420px;overflow:auto;color:#c7d0e0}
+  .answer{margin-top:13px;padding:13px 15px;border-left:3px solid var(--accent);background:var(--panel2);border-radius:8px;display:none} .answer.show{display:block}
+  .exmpl{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .exmpl a{font-size:12px;padding:5px 10px;border:1px solid var(--line);border-radius:20px;color:var(--muted);background:var(--panel)} .exmpl a:hover{border-color:var(--accent);color:var(--accent)}
+  .console{margin-top:14px;background:#0f1320;border:1px solid #1d2536;border-radius:12px;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.7;min-height:150px;max-height:440px;overflow:auto;color:#c7d0e0}
   .cl{white-space:pre-wrap;word-break:break-word}
   .cl.observe{color:#e7ecf3;font-weight:600} .cl.status{color:#8a93a8;font-style:italic}
   .cl.call{color:#7aa2ff} .cl.result{color:#96a0b5;padding-left:14px} .cl.reason{color:#c8b06b;font-style:italic}
-  .cl.eval{padding-left:18px;color:#8a93a8} .cl.eval.hit{color:#4fd8a4}
-  .cl.finding{color:#c9a6ff;font-weight:600} .cl.err{color:#ff8080}
+  .cl.eval{padding-left:18px;color:#8a93a8} .cl.eval.hit{color:#4fd8a4} .cl.finding{color:#c9a6ff;font-weight:600} .cl.err{color:#ff8080}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:820px){.grid2{grid-template-columns:1fr}}
-  .drop{border:1.5px dashed var(--line);border-radius:10px;padding:13px 14px;background:var(--panel2)}
-  .drop label{font-size:12px;font-weight:600;display:block;margin-bottom:6px}
-  .drop input[type=file]{font-size:12px}
+  .drop{border:1.5px dashed var(--line);border-radius:10px;padding:13px 14px;background:var(--panel2)} .drop label{font-size:12px;font-weight:600;display:block;margin-bottom:6px} .drop input[type=file]{font-size:12px}
+
+  .drawer-bg{position:fixed;inset:0;background:rgba(20,24,32,.28);opacity:0;pointer-events:none;transition:.2s;z-index:40} .drawer-bg.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:92vw;background:var(--panel);border-left:1px solid var(--line);transform:translateX(100%);transition:.24s cubic-bezier(.4,0,.2,1);z-index:41;padding:20px;overflow:auto;box-shadow:-8px 0 24px rgba(20,24,32,.08)} .drawer.show{transform:none}
+  .drawer h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin:0 0 4px} .drawer .x{position:absolute;top:16px;right:18px;cursor:pointer;color:var(--muted);font-size:18px}
+  .arow{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line2);font-size:12.5px} .arow:last-child{border-bottom:0}
+  .arow .at{font-family:var(--mono);color:var(--faint);flex:none} .arow.pass .ae{color:var(--green);font-weight:600} .arow.block .ae{color:var(--amber);font-weight:600}
 </style>
 </head>
 <body>
@@ -222,7 +196,7 @@
   <div class="brand"><span class="dot"></span> LedgerProof</div>
   <div class="ds-sel">Dataset <select id="ds"></select></div>
   <div class="spacer"></div>
-  <span class="live"><span class="pulse"></span> LIVE</span>
+  <div class="gov-status" id="gov-status"><span class="shield">⛨</span> <span id="gov-status-txt">Auto-resolution OFF</span></div>
   <button class="btn primary" id="run-recon">Run Reconciliation</button>
 </div>
 
@@ -231,390 +205,319 @@
     <div class="grp">General</div>
     <div class="nav active" data-v="overview"><span class="ic">▦</span> Overview</div>
     <div class="grp">Reconciliation</div>
-    <div class="nav sub" data-v="cycles"><span class="ic">≣</span> Settlement Cycles</div>
+    <div class="nav sub" data-v="cycles"><span class="ic">≣</span> Settlement runs</div>
     <div class="nav sub" data-v="exceptions"><span class="ic">⚑</span> Exceptions</div>
-    <div class="grp">Agent</div>
-    <div class="nav" data-v="investigation"><span class="ic">◎</span> Investigation</div>
-    <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit Trail</div>
-    <div class="grp">Config</div>
-    <div class="nav" data-v="settings"><span class="ic">⚙</span> Settings</div>
+    <div class="grp">Investigation</div>
+    <div class="nav" data-v="investigation"><span class="ic">◎</span> Agent workspace</div>
+    <div class="grp">Records</div>
+    <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit</div>
+    <div class="grp">System</div>
+    <div class="nav" data-v="data"><span class="ic">⬍</span> Data</div>
+    <div class="nav" data-v="settings"><span class="ic">⚙</span> Governor</div>
   </nav>
 
   <main>
     <!-- OVERVIEW -->
     <section class="view show" id="v-overview">
-      <div class="phead">
-        <div><h1>Settlement Reconciliation</h1>
-          <div class="sub">Cycle <b id="ov-cycle">—</b> · <span id="ov-run">idle</span></div></div>
+      <div class="phead"><div><h1>Settlement Reconciliation</h1>
+        <div class="sub">Cycle <b id="ov-cycle">—</b> · <span id="ov-run">idle</span></div></div></div>
+      <div id="ov-hero"></div>
+      <div class="m2" id="ov-m2"></div>
+      <div class="m4" id="ov-m4"></div>
+
+      <h2 class="sec">Finance copilot</h2>
+      <div class="panelbox" style="max-width:none">
+        <div class="ask"><input id="qa-q" placeholder="Ask about this reconciliation run…" style="flex:1;min-width:260px"/><button class="btn primary" id="qa-go">Ask</button></div>
+        <div class="exmpl" id="qa-ex"></div>
+        <div class="answer" id="qa-a"></div>
       </div>
-      <div class="metrics" id="ov-metrics"></div>
-      <div class="subrow" id="ov-sub"></div>
-      <h2 class="sec">Settlement Cycles</h2>
-      <div class="card"><table><thead><tr>
-        <th>Cycle</th><th>Date</th><th class="num">Gross</th><th class="num">Net</th><th>Match</th><th class="num">Issues</th>
-      </tr></thead><tbody id="ov-cycles"></tbody></table></div>
+
+      <h2 class="sec">Settlement runs</h2>
+      <div class="card"><table><thead><tr><th>Run</th><th>Date</th><th class="num">Gross</th><th class="num">Net</th><th>Match</th><th class="num">Issues</th></tr></thead><tbody id="ov-cycles"></tbody></table></div>
     </section>
 
     <!-- CYCLES -->
     <section class="view" id="v-cycles">
-      <div class="phead"><div><h1>Settlement Cycles</h1><div class="sub">Every payout batch, gross → net, and its match rate.</div></div></div>
-      <div class="card"><table><thead><tr>
-        <th>Cycle</th><th>Date</th><th class="num">Settlements</th><th class="num">Gross</th><th class="num">Net</th><th>Match</th><th class="num">Issues</th>
-      </tr></thead><tbody id="cy-body"></tbody></table></div>
+      <div class="phead"><div><h1>Settlement runs</h1><div class="sub">Every payout batch, gross → net, and its match rate.</div></div></div>
+      <div class="card"><table><thead><tr><th>Run</th><th>Date</th><th class="num">Settlements</th><th class="num">Gross</th><th class="num">Net</th><th>Match</th><th class="num">Issues</th></tr></thead><tbody id="cy-body"></tbody></table></div>
       <h2 class="sec">Source of truth — one transaction, three views</h2>
-      <div class="lookup ask"><input id="sot-id" placeholder="payment_id (pay_…)" style="width:230px"/>
-        <button class="btn" id="sot-go">Trace</button><span id="sot-samples" class="muted"></span></div>
-      <div id="sot" style="margin-top:14px"></div>
+      <div class="lookup ask"><input id="sot-id" placeholder="payment_id (pay_…)" style="width:230px"/><button class="btn" id="sot-go">Trace</button><span id="sot-samples" class="muted"></span></div>
+      <div id="sot" style="margin-top:16px"></div>
     </section>
 
     <!-- EXCEPTIONS -->
     <section class="view" id="v-exceptions">
       <div class="phead"><div><h1>Exception Queue</h1><div class="sub">Everything deterministic matching could not prove. Click a row to investigate.</div></div></div>
-      <div class="card"><table><thead><tr>
-        <th>Severity</th><th>Bank credit</th><th>Type</th><th class="num">Amount</th><th>Confidence</th><th>Status</th>
-      </tr></thead><tbody id="ex-body"></tbody></table></div>
+      <div class="card"><table><thead><tr><th>Severity</th><th class="num">Amount</th><th>Flow</th><th>Break type</th><th>Confidence</th><th>Status</th></tr></thead><tbody id="ex-body"></tbody></table></div>
     </section>
 
-    <!-- WORKSPACE (drilldown) -->
+    <!-- WORKSPACE -->
     <section class="view" id="v-workspace">
-      <div class="ws-head">
-        <span class="back" id="ws-back">← Exceptions</span>
-        <span class="id" id="ws-id">—</span>
-        <span class="pill" id="ws-type"></span>
-        <span class="pill" id="ws-status"></span>
-        <div class="spacer" style="flex:1"></div>
-        <button class="btn sm" id="ws-audit-btn">View audit</button>
+      <div class="ws-head"><span class="back" id="ws-back">← Exceptions</span><span class="idh" id="ws-id">—</span>
+        <span class="pill" id="ws-type"></span><span class="flow" id="ws-flow"></span>
+        <div class="spacer" style="flex:1"></div><button class="btn sm" id="ws-audit-btn">View audit</button></div>
+      <div class="ws-grid">
+        <div><h2 class="sec" style="margin-top:0">Investigation path</h2><div class="timeline" id="ws-timeline"></div></div>
+        <div id="ws-detail"></div>
       </div>
-      <div class="ws-cols">
-        <div class="col"><h3>Source records</h3><div id="ws-source"></div><div id="ws-diff"></div></div>
-        <div class="col"><h3>AI investigation</h3><div class="trace" id="ws-trace"></div><div class="finding" id="ws-finding"></div></div>
-        <div class="col"><h3>Verification</h3><div id="ws-verify"></div>
-          <div class="gov" id="ws-gov"></div></div>
-      </div>
-      <div class="pathwrap"><h2 class="sec">Investigation path</h2><div class="path" id="ws-path"></div></div>
     </section>
 
-    <!-- INVESTIGATION (live) -->
+    <!-- AGENT WORKSPACE (live) -->
     <section class="view" id="v-investigation">
-      <div class="phead"><div><h1>Live Investigation</h1><div class="sub">Pick a credit and watch the agent investigate in real time — search, reason, verify, govern.</div></div></div>
+      <div class="phead"><div><h1>Agent Workspace</h1><div class="sub">Pick a bank credit and watch the agent investigate live — search, score candidates, reason, verify, govern.</div></div></div>
       <div class="panelbox" style="max-width:none">
-        <div class="ask">
-          <select id="inv-credit" style="flex:1;min-width:260px"></select>
+        <div class="ask"><select id="inv-credit" style="flex:1;min-width:260px"></select>
           <select id="inv-model"><option value="heuristic">Heuristic (instant)</option><option value="gemini">Gemini (Vertex)</option></select>
-          <button class="btn primary" id="inv-go">Investigate ▸</button>
-        </div>
+          <button class="btn primary" id="inv-go">Investigate ▸</button></div>
         <div class="console" id="live-trace"><div class="cl status">Select a credit and press Investigate.</div></div>
       </div>
     </section>
 
     <!-- AUDIT -->
     <section class="view" id="v-audit">
-      <div class="phead"><div><h1>Audit Trail</h1><div class="sub">Every decision, append-only and reversible. Click for the full timeline.</div></div></div>
-      <div class="card"><table><thead><tr>
-        <th>Bank credit</th><th>Outcome</th><th>Confidence</th><th>Verifier</th><th>Governor</th>
-      </tr></thead><tbody id="au-body"></tbody></table></div>
+      <div class="phead"><div><h1>Audit</h1><div class="sub">Every decision, append-only and reversible. Click for the full timeline.</div></div></div>
+      <div class="card"><table><thead><tr><th>Record</th><th>Flow</th><th>Break type</th><th>Confidence</th><th>Decision</th></tr></thead><tbody id="au-body"></tbody></table></div>
     </section>
 
-    <!-- SETTINGS -->
-    <section class="view" id="v-settings">
-      <div class="phead"><div><h1>Settings</h1><div class="sub">Controlled autonomy and data.</div></div></div>
-      <h2 class="sec">Auto-resolution governor</h2>
-      <div class="panelbox">
-        <div class="row"><div><div class="l">Auto-resolution</div><div class="sub">Master switch — off is the safe default</div></div>
-          <label class="switch"><input type="checkbox" id="g-en"><span class="sl"></span></label></div>
-        <div class="row"><div><div class="l">Minimum confidence</div><div class="sub">A verified finding still needs at least this</div></div>
-          <div style="display:flex;align-items:center;gap:10px"><input type="range" id="g-conf" min="0.5" max="1" step="0.01"><b class="mono" id="g-conf-v">0.95</b></div></div>
-        <div style="padding-top:12px">
-          <div class="l" style="font-weight:600;margin-bottom:4px">Allowed categories</div>
-          <div class="cat"><span class="box on" id="cat-bsm" data-cat="bank_settlement_match">✓</span> Bank–settlement match <span class="lock">agent</span></div>
-          <div class="cat"><span class="box fixed">✓</span> TDR / GST mismatch <span class="lock">engine · always</span></div>
-          <div class="cat"><span class="box fixed">✓</span> Timing mismatch <span class="lock">engine · always</span></div>
-          <div class="cat"><span class="box fixed">✕</span> Compound break <span class="lock">human only</span></div>
-          <div class="cat"><span class="box fixed">✕</span> Unexplained <span class="lock">human only</span></div>
-        </div>
-        <div style="margin-top:14px"><button class="btn primary" id="g-save">Save configuration</button> <span id="g-saved" class="muted"></span></div>
-      </div>
-
-      <h2 class="sec">Data</h2>
+    <!-- DATA -->
+    <section class="view" id="v-data">
+      <div class="phead"><div><h1>Data</h1><div class="sub">Sample datasets, or upload your own Razorpay-shaped sources.</div></div></div>
       <div class="panelbox" style="max-width:none">
         <div class="l" style="font-weight:600">Sample datasets</div>
         <div id="set-samples" style="margin:10px 0 6px;display:flex;gap:8px;flex-wrap:wrap"></div>
         <div class="l" style="font-weight:600;margin-top:14px">Upload your sources (5 CSVs)</div>
-        <div class="sub" style="margin:3px 0 10px">Real Razorpay-shaped exports. <span id="tpl-links"></span></div>
+        <div class="sub" style="margin:3px 0 10px"><span id="tpl-links"></span></div>
         <div class="grid2" id="up-drops"></div>
         <div style="margin-top:12px"><button class="btn primary" id="up-go">Upload &amp; reconcile</button> <span id="up-status" class="muted"></span></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS / GOVERNOR -->
+    <section class="view" id="v-settings">
+      <div class="phead"><div><h1>Governor</h1><div class="sub">Controlled autonomy — the system acts only inside a boundary you set.</div></div></div>
+      <div class="panelbox">
+        <div class="row"><div><div class="l">Auto-resolution</div><div class="sub">Master switch — off is the safe default</div></div>
+          <label class="switch"><input type="checkbox" id="g-en"><span class="sl"></span></label></div>
+        <div class="row"><div><div class="l">Confidence threshold</div><div class="sub">A verified finding still needs at least this</div></div>
+          <div style="display:flex;align-items:center;gap:10px"><input type="range" id="g-conf" min="0.5" max="1" step="0.01"><b class="mono" id="g-conf-v">0.95</b></div></div>
+        <div style="padding-top:12px"><div class="l" style="font-weight:600;margin-bottom:4px">Allowed categories</div>
+          <div class="cat"><span class="box on" id="cat-bsm" data-cat="bank_settlement_match">✓</span> Bank–settlement match <span class="lock">agent</span></div>
+          <div class="cat"><span class="box fixed">✓</span> TDR / GST mismatch <span class="lock">engine · always</span></div>
+          <div class="cat"><span class="box fixed">✓</span> Timing mismatch <span class="lock">engine · always</span></div>
+          <div class="cat"><span class="box fixed">✕</span> Compound variance <span class="lock">human only</span></div>
+          <div class="cat"><span class="box fixed">✕</span> Unexplained <span class="lock">human only</span></div></div>
+        <div style="margin-top:14px"><button class="btn primary" id="g-save">Save configuration</button> <span id="g-saved" class="muted"></span></div>
       </div>
     </section>
   </main>
 </div>
 
-<!-- audit drawer -->
 <div class="drawer-bg" id="drawer-bg"></div>
-<div class="drawer" id="drawer">
-  <span class="x" id="drawer-x">×</span>
-  <h3>Audit trail</h3><div class="mono muted" id="drawer-id"></div>
-  <div class="audit" id="drawer-audit"></div>
-</div>
+<div class="drawer" id="drawer"><span class="x" id="drawer-x">×</span><h3>Audit trail</h3><div class="mono muted" id="drawer-id"></div><div id="drawer-audit" style="margin-top:16px"></div></div>
 
 <script>
-const $=(s)=>document.querySelector(s), $$=(s)=>document.querySelectorAll(s);
+const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const rsFull=p=>p==null?"—":"₹"+(p/100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 function rsShort(p){if(p==null)return"—";const r=p/100;if(r>=1e7)return"₹"+(r/1e7).toFixed(2)+" Cr";if(r>=1e5)return"₹"+(r/1e5).toFixed(2)+" L";return"₹"+r.toLocaleString("en-IN",{maximumFractionDigits:0});}
 const pct=x=>x==null?"—":(x*100).toFixed(1)+"%";
 async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json();}
 const el=h=>{const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild;};
 const SOURCES=["pg_payments","settlements","settlement_report","bank_statement","internal_ledger"];
-const loaded={};
+let loaded={};
 
-/* ---------- router ---------- */
 function show(v){
   $$(".nav").forEach(n=>n.classList.toggle("active",n.dataset.v===v));
-  $$(".view").forEach(s=>s.classList.remove("show"));
-  $("#v-"+v).classList.add("show");
-  if(v==="overview") loadOverview();
-  if(v==="cycles" && !loaded.cycles){loadCycles();loadSamples();loaded.cycles=1;}
-  if(v==="exceptions" && !loaded.exceptions){loadExceptions();loaded.exceptions=1;}
-  if(v==="investigation" && !loaded.inv){loadCredits();loaded.inv=1;}
-  if(v==="audit"){loadAudit();}
-  if(v==="settings" && !loaded.settings){loadSettings();loaded.settings=1;}
+  $$(".view").forEach(s=>s.classList.remove("show")); $("#v-"+v).classList.add("show");
+  if(v==="overview")loadOverview();
+  if(v==="cycles"&&!loaded.cycles){loadCycles();loadSamples();loaded.cycles=1;}
+  if(v==="exceptions"&&!loaded.exceptions){loadExceptions();loaded.exceptions=1;}
+  if(v==="investigation"&&!loaded.inv){loadCredits();loaded.inv=1;}
+  if(v==="audit")loadAudit();
+  if(v==="data"&&!loaded.data){loadData();loaded.data=1;}
+  if(v==="settings"&&!loaded.settings){loadSettings();loaded.settings=1;}
 }
 $$(".nav").forEach(n=>n.addEventListener("click",()=>show(n.dataset.v)));
 
-/* ---------- overview ---------- */
+/* overview */
 async function loadOverview(){
-  const [rep,cyc]=await Promise.all([jget("/api/report"),jget("/api/cycles")]);
+  const [rep,cyc,exc]=await Promise.all([jget("/api/report"),jget("/api/cycles"),jget("/api/exceptions")]);
   const a=rep.seam_a_payments,g=rep.governance,c=rep.cardinal;
   $("#ov-cycle").textContent=cyc.cycles.length?cyc.cycles[0].date:"—";
-  const fm=c.combined_false_match_rate;
-  $("#ov-metrics").innerHTML="";
-  const cards=[
-    {lab:"Settlement volume",val:rsShort(cyc.settlement_volume),hint:cyc.cycles.length+" cycles"},
-    {lab:"Reconciled",val:a.matched.toLocaleString("en-IN")+" / "+a.total.toLocaleString("en-IN"),hint:pct(a.match_rate)+" deterministically"},
-    {lab:"Exceptions",val:a.exceptions.toLocaleString("en-IN"),hint:"routed to agent / human"},
-    {trust:1,lab:"False matches",val:(fm==null?"N/A":(c.acted_false_matches||0)),hint:fm==null?"needs ground truth":(fm===0?"the cardinal metric — zero":"REVIEW")},
-  ];
-  for(const k of cards){
-    $("#ov-metrics").append(el(`<div class="metric ${k.trust?'trust':''}"><div class="lab">${k.lab}</div>
-      <div class="val">${k.trust&&k.val===0?'<span class="chk">✓</span>':''}${k.val}</div><div class="hint">${k.hint}</div></div>`));
-  }
-  $("#ov-sub").innerHTML=`
-    <div class="kv"><span class="l">Auto-resolved</span><span class="v">${g.auto_resolved}</span></div>
-    <div class="kv"><span class="l">Human review</span><span class="v">${g.human_review}</span></div>
-    <div class="kv"><span class="l">Agent cases (credits)</span><span class="v">${rep.seam_b_credits.total}</span></div>
-    <div class="kv"><span class="l">Throughput</span><span class="v">${Math.round(rep.throughput.records_per_second).toLocaleString("en-IN")}/s</span></div>`;
+  const fm=c.combined_false_match_rate, wrong=c.acted_false_matches;
+  $("#ov-hero").innerHTML= fm==null
+    ? `<div class="hero"><div class="big">—</div><div class="txt"><div class="k">False matches</div><div class="d">Uploaded data has no ground truth, so accuracy vs. truth isn't measurable — but the engine still only asserts matches it can prove.</div></div></div>`
+    : `<div class="hero ${wrong>0?'warn':''}"><div class="big">${wrong>0?wrong:'<span class="chk">✓</span>0'}</div>
+        <div class="txt"><div class="k">False matches</div><div class="d">${wrong>0?'Review — the system asserted a match it could not prove.':'Zero across '+(c.acted_matches||0).toLocaleString("en-IN")+' asserted reconciliations. The cardinal trust metric.'}</div></div></div>`;
+  $("#ov-m2").innerHTML=`
+    <div class="card2"><div class="lab">Deterministically reconciled · Payment → Ledger</div>
+      <div class="val">${a.matched.toLocaleString("en-IN")} / ${a.total.toLocaleString("en-IN")}</div><div class="hint">${pct(a.match_rate)} proven by code</div></div>
+    <div class="card2"><div class="lab">Exceptions to investigate</div>
+      <div class="val">${exc.length}</div><div class="hint">payment &amp; bank-credit breaks</div></div>`;
+  $("#ov-m4").innerHTML=`
+    <div class="chip"><div class="l">Agent investigations</div><div class="v">${rep.seam_b_credits.total}</div></div>
+    <div class="chip"><div class="l">Safe auto-resolutions</div><div class="v">${g.auto_resolved}</div></div>
+    <div class="chip"><div class="l">Human review</div><div class="v">${g.human_review}</div></div>
+    <div class="chip"><div class="l">Throughput</div><div class="v">${Math.round(rep.throughput.records_per_second).toLocaleString("en-IN")}/s</div></div>`;
   $("#ov-cycles").innerHTML=cyc.cycles.slice(0,6).map(cycleRow).join("");
 }
-function cycleRow(c){
-  return `<tr><td class="tag">${c.cycle_id}</td><td>${c.date}</td><td class="num">${rsShort(c.gross)}</td>
-    <td class="num">${rsShort(c.net)}</td><td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td>
-    <td class="num">${c.issues}</td></tr>`;
-}
+function cycleRow(c){return `<tr><td class="id">${c.cycle_id}</td><td>${c.date}</td><td class="num">${rsShort(c.gross)}</td><td class="num">${rsShort(c.net)}</td><td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td><td class="num">${c.issues}</td></tr>`;}
 
-/* ---------- cycles ---------- */
-async function loadCycles(){
-  const cyc=await jget("/api/cycles");
-  $("#cy-body").innerHTML=cyc.cycles.map(c=>`<tr><td class="tag">${c.cycle_id}</td><td>${c.date}</td>
-    <td class="num">${c.settlements}</td><td class="num">${rsShort(c.gross)}</td><td class="num">${rsShort(c.net)}</td>
-    <td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td>
-    <td class="num">${c.issues}</td></tr>`).join("");
+/* copilot */
+const QA_EX=["Give me a summary","How many credits are unexplained?","What did the agent auto-resolve?","Total GST this cycle"];
+function initCopilot(){$("#qa-ex").innerHTML=QA_EX.map(q=>`<a href="#" data-q="${q}">${q}</a>`).join("");
+  $$("#qa-ex a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();askQA(a.dataset.q);}));}
+async function askQA(q){q=(q||$("#qa-q").value).trim();if(!q)return;$("#qa-q").value=q;const b=$("#qa-a");b.classList.add("show");b.textContent="…";
+  try{b.textContent=(await jget("/api/qa?q="+encodeURIComponent(q))).answer;}catch(e){b.textContent="error: "+e;}}
+$("#qa-go").addEventListener("click",()=>askQA());$("#qa-q").addEventListener("keydown",e=>{if(e.key==="Enter")askQA();});
+
+/* cycles + source of truth */
+async function loadCycles(){const cyc=await jget("/api/cycles");
+  $("#cy-body").innerHTML=cyc.cycles.map(c=>`<tr><td class="id">${c.cycle_id}</td><td>${c.date}</td><td class="num">${c.settlements}</td><td class="num">${rsShort(c.gross)}</td><td class="num">${rsShort(c.net)}</td><td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td><td class="num">${c.issues}</td></tr>`).join("");}
+async function loadSamples(){try{const s=await jget("/api/samples");
+  $("#sot-samples").innerHTML="try: "+s.payment_ids.slice(0,3).map(i=>`<a href="#" data-id="${i}">${i}</a>`).join(" · ");
+  $$("#sot-samples a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();$("#sot-id").value=a.dataset.id;lookupTxn(a.dataset.id);}));}catch(e){}}
+function sotVertical(records,diff){
+  let h='<div class="sot-v">';
+  records.forEach((r,i)=>{h+=`<div class="sot-node"><div class="who">${r.who}</div><div class="a">${rsFull(r.amount)}</div><div class="meta">${r.ref} · ${r.sub}</div></div>`;
+    if(i<records.length-1)h+='<div class="sot-arrow">↓</div>';});
+  h+='</div>';
+  if(diff)h+=`<div class="sot-diff"><div class="dhead" style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px">Difference <b class="mono" style="color:var(--ink);font-size:14px">${rsFull(diff.difference)}</b></div>
+    <div class="drow"><span>TDR (MDR)</span><b>${rsFull(diff.tdr)}</b></div><div class="drow"><span>GST on MDR</span><b>${rsFull(diff.gst)}</b></div>
+    ${diff.reserve?`<div class="drow"><span>Rolling reserve</span><b>${rsFull(diff.reserve)}</b></div>`:""}
+    ${diff.refunds?`<div class="drow"><span>Refund</span><b>${rsFull(diff.refunds)}</b></div>`:""}</div>`;
+  return h;
 }
-async function loadSamples(){
-  try{const s=await jget("/api/samples");
-    $("#sot-samples").innerHTML="try: "+s.payment_ids.slice(0,3).map(i=>`<a href="#" data-id="${i}">${i}</a>`).join(" · ");
-    $$("#sot-samples a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();$("#sot-id").value=a.dataset.id;lookupTxn(a.dataset.id);}));
-  }catch(e){}
-}
-async function lookupTxn(pid){
-  pid=pid||$("#sot-id").value.trim(); if(!pid)return;
+async function lookupTxn(pid){pid=pid||$("#sot-id").value.trim();if(!pid)return;
   try{const t=await jget("/api/transaction/"+encodeURIComponent(pid));
-    const three=[["Razorpay (capture)",t.pg_capture.captured_amount,t.pg_capture.method,t.pg_capture.payment_id,t.pg_capture.captured_at],
-      ["Settlement (net)",t.settlement_report?t.settlement_report.net_amount:null,"net of fees",t.settlement_report?t.settlement_report.settlement_id:"—",t.settlement?t.settlement.created_at:"—"],
-      ["Merchant ledger",t.internal_ledger?t.internal_ledger.booked_amount:null,"gross booked",t.internal_ledger?t.internal_ledger.ledger_entry_id:"—",t.internal_ledger?t.internal_ledger.booked_at:"—"]];
-    let diff="";
-    if(t.breakdown){const b=t.breakdown;
-      diff=`<div class="diff"><div class="dhead"><b>${rsFull(b.difference)}</b> difference explained</div>
-        <div class="drow"><span>TDR (MDR)</span><b>${rsFull(b.mdr)}</b></div>
-        <div class="drow"><span>GST on MDR</span><b>${rsFull(b.gst)}</b></div>
-        ${b.reserve?`<div class="drow"><span>Rolling reserve</span><b>${rsFull(b.reserve)}</b></div>`:""}
-        ${b.refund?`<div class="drow"><span>Refund</span><b>${rsFull(b.refund)}</b></div>`:""}</div>`;}
-    $("#sot").innerHTML=`<div class="ws-cols">${three.map(v=>`<div class="col"><h3>${v[0]}</h3>
-      <div class="srec"><div class="top"><span class="who"></span><span class="amt">${rsFull(v[1])}</span></div>
-      <div class="meta">${v[3]}<br>${v[4]} · ${v[2]}</div></div></div>`).join("")}</div>${diff}`;
-  }catch(e){$("#sot").innerHTML=`<div class="empty err">not found: ${pid}</div>`;}
-}
-$("#sot-go").addEventListener("click",()=>lookupTxn());
-$("#sot-id").addEventListener("keydown",e=>{if(e.key==="Enter")lookupTxn();});
+    const recs=[{who:"Payment (capture)",amount:t.pg_capture.captured_amount,ref:t.pg_capture.payment_id,sub:t.pg_capture.method},
+      {who:"Settlement (net)",amount:t.settlement_report?t.settlement_report.net_amount:null,ref:t.settlement_report?t.settlement_report.settlement_id:"—",sub:t.settlement?t.settlement.created_at:"—"},
+      {who:"Merchant ledger",amount:t.internal_ledger?t.internal_ledger.booked_amount:null,ref:t.internal_ledger?t.internal_ledger.ledger_entry_id:"—",sub:"gross booked"}];
+    $("#sot").innerHTML=sotVertical(recs,t.breakdown);
+  }catch(e){$("#sot").innerHTML=`<div class="empty err">not found: ${pid}</div>`;}}
+$("#sot-go").addEventListener("click",()=>lookupTxn());$("#sot-id").addEventListener("keydown",e=>{if(e.key==="Enter")lookupTxn();});
 
-/* ---------- exceptions ---------- */
+/* exceptions */
 function sevPill(s){return `<span class="pill ${s.toLowerCase()}"><span class="sev-dot ${s.toLowerCase()}"></span>${s}</span>`;}
-function statusPill(d){return d==="auto_resolved"?`<span class="pill auto">AUTO-RESOLVED</span>`:`<span class="pill human">REVIEW</span>`;}
-async function loadExceptions(){
-  const rows=await jget("/api/exceptions");
-  $("#ex-body").innerHTML=rows.map(r=>`<tr class="click" data-id="${r.bank_txn_id}">
-    <td>${sevPill(r.severity)}</td><td class="tag">${r.bank_txn_id}</td><td>${r.kind}</td>
-    <td class="num">${rsFull(r.amount)}</td><td class="mono">${r.confidence.toFixed(2)}</td>
-    <td>${statusPill(r.governor_decision)}</td></tr>`).join("");
-  $$("#ex-body tr").forEach(t=>t.addEventListener("click",()=>openWorkspace(t.dataset.id)));
-}
+function statusPill(s){const c=s.toLowerCase().replace(/[^a-z]/g,"");return `<span class="pill ${c}">${s}</span>`;}
+async function loadExceptions(){const rows=await jget("/api/exceptions");
+  $("#ex-body").innerHTML=rows.map(r=>`<tr class="click" data-id="${r.id}">
+    <td>${sevPill(r.severity)}</td><td class="num amt">${rsFull(r.amount)}</td><td class="flow">${r.flow}</td>
+    <td>${r.kind}<div class="id">${r.id}</div></td><td class="mono">${r.confidence!=null?r.confidence.toFixed(2):"—"}</td><td>${statusPill(r.status)}</td></tr>`).join("");
+  $$("#ex-body tr").forEach(t=>t.addEventListener("click",()=>openWorkspace(t.dataset.id)));}
 
-/* ---------- workspace ---------- */
+/* workspace */
 let _wsAudit=null;
-async function openWorkspace(bid){
+async function openWorkspace(id){
   show("workspace");
-  $("#ws-id").textContent=bid; $("#ws-trace").innerHTML=""; $("#ws-finding").innerHTML="";
-  $("#ws-verify").innerHTML='<div class="muted mono">loading…</div>'; $("#ws-gov").innerHTML=""; $("#ws-path").innerHTML="";
-  const d=await jget("/api/exception/"+encodeURIComponent(bid));
-  _wsAudit={id:bid,rows:d.audit};
-  $("#ws-type").className="pill "+d.severity.toLowerCase(); $("#ws-type").textContent=d.break_type;
-  $("#ws-status").className="pill "+(d.governor.decision==="auto_resolved"?"auto":"human");
-  $("#ws-status").textContent=d.governor.decision.replace("_"," ").toUpperCase();
-  // source records
-  const s=d.source;
-  const rec=(who,r)=>`<div class="srec"><div class="top"><span class="who">${who}</span><span class="amt">${rsFull(r.amount)}</span></div>
-    <div class="meta">${r.ref}<br>${r.date||""} · ${r.type}</div></div>`;
-  $("#ws-source").innerHTML=rec("Bank",s.bank)+rec("Razorpay",s.razorpay)+rec("Ledger",s.ledger);
-  $("#ws-diff").innerHTML=d.diff?`<div class="diff"><div class="dhead">Settlement <b>${rsFull(d.diff.gross)}</b> gross → <b>${rsFull(d.diff.net)}</b> net</div>
-    <div class="drow"><span>TDR</span><b>${rsFull(d.diff.tdr)}</b></div><div class="drow"><span>GST</span><b>${rsFull(d.diff.gst)}</b></div>
-    ${d.diff.reserve?`<div class="drow"><span>Reserve</span><b>${rsFull(d.diff.reserve)}</b></div>`:""}
-    ${d.diff.refunds?`<div class="drow"><span>Refunds</span><b>${rsFull(d.diff.refunds)}</b></div>`:""}</div>`:"";
-  // trace (staggered reveal for a live feel)
+  $("#ws-id").textContent=id;$("#ws-timeline").innerHTML="";$("#ws-detail").innerHTML='<div class="empty">loading…</div>';
+  const d=await jget("/api/exception/"+encodeURIComponent(id));
+  _wsAudit={id,rows:d.audit};
+  $("#ws-type").className="pill "+d.severity.toLowerCase();$("#ws-type").textContent=d.break_type;
+  $("#ws-flow").textContent=d.flow;
+  $("#ws-timeline").innerHTML=d.timeline.map(n=>`<div class="tnode ${n.state}"><div class="dot"></div><div class="n">${n.node}</div><div class="d">${n.detail}</div></div>`).join("");
+  d.scope==="credit"?renderCreditDetail(d):renderPaymentDetail(d);
+}
+function recCard(r){return `<div class="srec"><div class="top"><span class="who">${r.who}</span><span class="a">${rsFull(r.amount)}</span></div><div class="meta">${r.ref}<br>${r.sub}</div></div>`;}
+function diffBox(diff,label){if(!diff)return"";return `<div class="diff"><div class="dhead">${label||"Settlement"} <b>${rsFull(diff.gross)}</b> gross → <b>${rsFull(diff.net)}</b> net</div>
+  <div class="drow"><span>TDR</span><b>${rsFull(diff.tdr)}</b></div><div class="drow"><span>GST</span><b>${rsFull(diff.gst)}</b></div>
+  ${diff.reserve?`<div class="drow"><span>Reserve</span><b>${rsFull(diff.reserve)}</b></div>`:""}${diff.refunds?`<div class="drow"><span>Refunds</span><b>${rsFull(diff.refunds)}</b></div>`:""}</div>`;}
+function renderCreditDetail(d){
+  $("#ws-detail").innerHTML=`<div class="detcols">
+    <div class="col"><h3>Source records</h3>${d.records.map(recCard).join("")}${diffBox(d.diff)}</div>
+    <div class="col"><h3>AI investigation</h3><div class="trace" id="ws-trace"></div><div class="finding" id="ws-finding"></div></div>
+    <div class="col"><h3>Verification</h3><div id="ws-verify"></div><div class="gov" id="ws-gov"></div></div></div>`;
   revealTrace(d.trace,()=>{
     $("#ws-finding").innerHTML=`<div class="fl">Finding</div><div class="ft">${d.finding.matched?("Match → "+d.finding.matched):"No defensible match — opened"}</div>
       <div class="fc">${(d.finding.basis||[]).join(" · ")} · confidence ${d.finding.confidence}</div>`;
     renderVerify(d);
   });
-  renderPath(d.path);
 }
-function revealTrace(steps,done){
-  const box=$("#ws-trace"); let i=0;
-  (function next(){
-    if(i>=steps.length){done&&done();return;}
-    const st=steps[i++]; box.append(traceLine(st));
-    setTimeout(next, st.type==="finding"?260:150);
-  })();
+function renderPaymentDetail(d){
+  $("#ws-detail").innerHTML=`<div class="detcols" style="grid-template-columns:1fr 1fr">
+    <div class="col"><h3>Source of truth</h3>${sotVertical(d.records,d.diff)}</div>
+    <div class="col"><h3>Why it's an exception</h3><div class="reasonbox">${d.reason}</div>
+      <div class="gov"><h3 style="margin-bottom:8px">Decision</h3><div class="decision"><span class="pill human">HUMAN REVIEW</span></div>
+      <div class="why">${d.governor.reason}. Deterministic breaks like this are never auto-resolved.</div></div></div></div>`;
 }
+function revealTrace(steps,done){const box=$("#ws-trace");let i=0;(function n(){if(i>=steps.length){done&&done();return;}box.append(traceLine(steps[i++]));setTimeout(n,steps[i-1]&&steps[i-1].type==="finding"?260:140);})();}
 function traceLine(st){
-  if(st.type==="tool_call")return el(`<div class="tl call"><span class="mk">→</span><span><span class="b">${st.tool}</span>(${Object.entries(st.args||{}).map(([k,v])=>k+"="+JSON.stringify(v)).join(", ")})</span></div>`);
+  if(st.type==="tool_call")return el(`<div class="tl call"><span class="mk">→</span><span><b>${st.tool}</b>(${Object.entries(st.args||{}).map(([k,v])=>k+"="+JSON.stringify(v)).join(", ")})</span></div>`);
   if(st.type==="tool_result")return el(`<div class="tl dim"><span class="mk">←</span><span>${st.text}</span></div>`);
   if(st.type==="reason")return el(`<div class="tl warn"><span class="mk">•</span><span>${st.text}</span></div>`);
-  if(st.type==="eval")return el(`<div class="tl ${st.match?'ok':'dim'}"><span class="mk">${st.match?'✓':'·'}</span><span>${st.text}</span></div>`);
+  if(st.type==="eval")return el(`<div class="tl eval ${st.match?'hit':''}"><span class="mk">${st.match?'✓':'·'}</span><span>${st.settlement_id||''}</span><span class="sc">${st.score!=null?st.score.toFixed(2):''}</span></div>`);
   if(st.type==="finding")return el(`<div class="tl ok"><span class="mk">◆</span><span>${st.text}</span></div>`);
   return el(`<div class="tl dim"><span class="mk">·</span><span>${st.text||''}</span></div>`);
 }
-function renderVerify(d){
-  const v=d.verification, checks=Object.entries(v.checks||{});
-  $("#ws-verify").innerHTML=(checks.length?checks.map(([k,ok])=>`<div class="chk ${ok?'ok':'no'}"><span class="m">${ok?'✓':'✕'}</span><span class="k">${k}</span></div>`).join("")
-    :`<div class="muted mono">${v.reason}</div>`)
+function renderVerify(d){const v=d.verification,checks=Object.entries(v.checks||{});
+  $("#ws-verify").innerHTML=(checks.length?checks.map(([k,ok])=>`<div class="chk ${ok?'ok':'no'}"><span class="m">${ok?'✓':'✕'}</span><span class="k">${k}</span></div>`).join(""):`<div class="muted mono">${v.reason}</div>`)
     +(v.rederived_net!=null?`<div class="rederived">re-derived net <b>${rsFull(v.rederived_net)}</b></div>`:"");
   const g=d.governor;
-  $("#ws-gov").innerHTML=`<h3 style="margin-bottom:10px">Governor</h3>
-    <div class="conf"><span class="big">${(g.confidence*100).toFixed(0)}%</span><span class="muted">confidence</span></div>
-    <div class="thr">threshold ${(g.threshold*100).toFixed(0)}%</div>
-    <div class="decision"><span class="pill ${g.decision==='auto_resolved'?'auto':'human'}">${g.decision.replace("_"," ").toUpperCase()}</span></div>
-    <div class="why">${g.reason}</div>`;
-}
-function renderPath(path){
-  $("#ws-path").innerHTML=path.map(p=>`<div class="pnode ${p.state}"><div class="s">${p.step}</div><div class="d">${p.detail}</div></div>`).join("");
+  $("#ws-gov").innerHTML=`<h3 style="margin-bottom:10px">Governor</h3><div class="conf"><span class="big">${(g.confidence*100).toFixed(0)}%</span><span class="muted">confidence</span></div>
+    <div class="thr">threshold ${(g.threshold*100).toFixed(0)}%</div><div class="decision"><span class="pill ${g.decision==='auto_resolved'?'auto':'human'}">${g.decision.replace("_"," ").toUpperCase()}</span></div><div class="why">${g.reason}</div>`;
 }
 $("#ws-back").addEventListener("click",()=>show("exceptions"));
 $("#ws-audit-btn").addEventListener("click",()=>{if(_wsAudit)openDrawer(_wsAudit.id,_wsAudit.rows);});
 
-/* ---------- drawer ---------- */
-function openDrawer(id,rows){
-  $("#drawer-id").textContent=id;
-  $("#drawer-audit").innerHTML=rows.map(r=>{const cls=/PASSED|AUTO-RESOLVED/.test(r.event)?"pass":/BLOCKED|HUMAN/.test(r.event)?"block":"";
-    return `<div class="arow ${cls}"><span class="at">${r.t}</span><span class="ae">${r.event}</span></div>`;}).join("");
-  $("#drawer").classList.add("show"); $("#drawer-bg").classList.add("show");
-}
+/* drawer */
+function openDrawer(id,rows){$("#drawer-id").textContent=id;
+  $("#drawer-audit").innerHTML=rows.map(r=>{const cls=/PASSED|AUTO-RESOLVED/.test(r.event)?"pass":/BLOCKED|HUMAN/.test(r.event)?"block":"";return `<div class="arow ${cls}"><span class="at">${r.t}</span><span class="ae">${r.event}</span></div>`;}).join("");
+  $("#drawer").classList.add("show");$("#drawer-bg").classList.add("show");}
 function closeDrawer(){$("#drawer").classList.remove("show");$("#drawer-bg").classList.remove("show");}
-$("#drawer-x").addEventListener("click",closeDrawer); $("#drawer-bg").addEventListener("click",closeDrawer);
+$("#drawer-x").addEventListener("click",closeDrawer);$("#drawer-bg").addEventListener("click",closeDrawer);
 
-/* ---------- live investigation ---------- */
-async function loadCredits(){
-  try{const rows=await jget("/api/credits");
-    $("#inv-credit").innerHTML=rows.map(r=>`<option value="${r.bank_txn_id}">${r.bank_txn_id} — ${r.kind} — ${rsShort(r.amount)}</option>`).join("");
-  }catch(e){}
-}
+/* live agent */
+async function loadCredits(){try{const rows=await jget("/api/credits");
+  $("#inv-credit").innerHTML=rows.map(r=>`<option value="${r.bank_txn_id}">${r.bank_txn_id} — ${r.kind} — ${rsShort(r.amount)}</option>`).join("");}catch(e){}}
 let _es=null;
 function cline(cls,html){const d=document.createElement("div");d.className="cl "+cls;d.innerHTML=html;const c=$("#live-trace");c.appendChild(d);c.scrollTop=c.scrollHeight;}
 function liveEvent(e){
-  if(e.type==="observe")cline("observe","● "+e.text);
-  else if(e.type==="status")cline("status",e.text);
+  if(e.type==="observe")cline("observe","● "+e.text);else if(e.type==="status")cline("status",e.text);
   else if(e.type==="tool_call")cline("call","→ "+e.tool+"("+Object.entries(e.args||{}).map(([k,v])=>k+"="+JSON.stringify(v)).join(", ")+")");
-  else if(e.type==="tool_result")cline("result","← "+e.text);
-  else if(e.type==="reason")cline("reason","• "+e.text);
-  else if(e.type==="eval")cline("eval "+(e.match?"hit":""),(e.match?"✓ ":"·  ")+e.text);
-  else if(e.type==="finding")cline("finding","◆ "+e.text);
+  else if(e.type==="tool_result")cline("result","← "+e.text);else if(e.type==="reason")cline("reason","• "+e.text);
+  else if(e.type==="eval")cline("eval "+(e.match?"hit":""),(e.match?"✓ ":"·  ")+e.text);else if(e.type==="finding")cline("finding","◆ "+e.text);
   else if(e.type==="verify"){cline("result","Verifier — net "+rsFull(e.rederived_net)+":");Object.entries(e.checks||{}).forEach(([k,ok])=>cline("eval "+(ok?"hit":""),(ok?"✓ ":"✕ ")+k));}
-  else if(e.type==="govern")cline("result","Governor → "+e.decision.replace("_"," ")+" ("+e.reason+")");
-  else if(e.type==="error")cline("err","✗ "+e.text);
+  else if(e.type==="govern")cline("result","Governor → "+e.decision.replace("_"," ")+" ("+e.reason+")");else if(e.type==="error")cline("err","✗ "+e.text);
 }
-$("#inv-go").addEventListener("click",()=>{
-  if(_es){_es.close();_es=null;}
-  const bid=$("#inv-credit").value,model=$("#inv-model").value; if(!bid)return;
-  $("#live-trace").innerHTML=""; $("#inv-go").disabled=true;
+$("#inv-go").addEventListener("click",()=>{if(_es){_es.close();_es=null;}const bid=$("#inv-credit").value,model=$("#inv-model").value;if(!bid)return;
+  $("#live-trace").innerHTML="";$("#inv-go").disabled=true;
   _es=new EventSource(`/api/investigate?bank_txn_id=${encodeURIComponent(bid)}&model=${model}`);
   _es.onmessage=ev=>{const e=JSON.parse(ev.data);liveEvent(e);if(e.type==="done"||e.type==="error"){_es.close();_es=null;$("#inv-go").disabled=false;}};
-  _es.onerror=()=>{if(_es){_es.close();_es=null;}$("#inv-go").disabled=false;};
-});
+  _es.onerror=()=>{if(_es){_es.close();_es=null;}$("#inv-go").disabled=false;};});
 
-/* ---------- audit view ---------- */
-async function loadAudit(){
-  const rows=await jget("/api/exceptions");
-  $("#au-body").innerHTML=rows.map(r=>`<tr class="click" data-id="${r.bank_txn_id}"><td class="tag">${r.bank_txn_id}</td>
-    <td>${r.matched_settlement_id?("→ "+r.matched_settlement_id):"opened"}</td><td class="mono">${r.confidence.toFixed(2)}</td>
-    <td>${r.verification.verified?'<span class="pill auto">passed</span>':'<span class="pill low">n/a</span>'}</td>
-    <td>${statusPill(r.governor_decision)}</td></tr>`).join("");
-  $$("#au-body tr").forEach(t=>t.addEventListener("click",()=>openWorkspace(t.dataset.id)));
-}
+/* audit */
+async function loadAudit(){const rows=await jget("/api/exceptions");
+  $("#au-body").innerHTML=rows.map(r=>`<tr class="click" data-id="${r.id}"><td class="id">${r.id}</td><td class="flow">${r.flow}</td><td>${r.kind}</td><td class="mono">${r.confidence!=null?r.confidence.toFixed(2):"—"}</td><td>${statusPill(r.status)}</td></tr>`).join("");
+  $$("#au-body tr").forEach(t=>t.addEventListener("click",()=>openWorkspace(t.dataset.id)));}
 
-/* ---------- settings ---------- */
-async function loadSettings(){
-  const p=await jget("/api/policy");
-  $("#g-en").checked=p.enabled; $("#g-conf").value=p.min_confidence; $("#g-conf-v").textContent=Number(p.min_confidence).toFixed(2);
-  $("#cat-bsm").classList.toggle("on",p.allowlist.includes("bank_settlement_match"));
-  $("#cat-bsm").textContent=p.allowlist.includes("bank_settlement_match")?"✓":"";
-  // samples
-  const ds=await jget("/api/dataset");
+/* data + settings */
+async function loadData(){const ds=await jget("/api/dataset");
   $("#set-samples").innerHTML=ds.available.map(d=>`<button class="btn sm ds-pick" data-n="${d.name}">${d.name}${d.has_ground_truth?"":" ·no GT"}</button>`).join("");
   $$(".ds-pick").forEach(b=>b.addEventListener("click",()=>selectDataset(b.dataset.n)));
-  // templates + upload drops
-  $("#tpl-links").innerHTML="Templates: "+SOURCES.map(s=>`<a href="/api/template/${s}" download="${s}.csv">${s}</a>`).join(" · ");
-  $("#up-drops").innerHTML=SOURCES.map(s=>`<div class="drop"><label>${s}.csv</label><input type="file" accept=".csv" data-src="${s}"></div>`).join("");
-}
+  $("#tpl-links").innerHTML="CSV templates: "+SOURCES.map(s=>`<a href="/api/template/${s}" download="${s}.csv">${s}</a>`).join(" · ");
+  $("#up-drops").innerHTML=SOURCES.map(s=>`<div class="drop"><label>${s}.csv</label><input type="file" accept=".csv" data-src="${s}"></div>`).join("");}
+$("#up-go").addEventListener("click",async()=>{const fd=new FormData();let miss=[];
+  SOURCES.forEach(s=>{const f=document.querySelector(`input[data-src="${s}"]`).files[0];if(f)fd.append(s,f,s+".csv");else miss.push(s);});
+  if(miss.length){$("#up-status").innerHTML=`<span class="err">missing: ${miss.join(", ")}</span>`;return;}
+  $("#up-status").textContent="uploading…";const r=await fetch("/api/dataset/upload",{method:"POST",body:fd});
+  if(!r.ok){$("#up-status").innerHTML=`<span class="err">${(await r.json()).detail}</span>`;return;}
+  $("#up-status").textContent="reconciled ✓";loaded={};await refreshDatasets();show("overview");});
+async function loadSettings(){const p=await jget("/api/policy");
+  $("#g-en").checked=p.enabled;$("#g-conf").value=p.min_confidence;$("#g-conf-v").textContent=Number(p.min_confidence).toFixed(2);
+  const on=p.allowlist.includes("bank_settlement_match");$("#cat-bsm").classList.toggle("on",on);$("#cat-bsm").textContent=on?"✓":"";}
 $("#g-conf").addEventListener("input",e=>$("#g-conf-v").textContent=Number(e.target.value).toFixed(2));
 $("#cat-bsm").addEventListener("click",e=>{const on=!e.target.classList.contains("on");e.target.classList.toggle("on",on);e.target.textContent=on?"✓":"";});
-$("#g-save").addEventListener("click",async()=>{
-  await fetch("/api/policy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-    enabled:$("#g-en").checked,min_confidence:parseFloat($("#g-conf").value),
-    allowlist:$("#cat-bsm").classList.contains("on")?["bank_settlement_match"]:[]})});
-  $("#g-saved").textContent="saved ✓"; setTimeout(()=>$("#g-saved").textContent="",1800);
-  loaded={}; loadOverview();
-});
-async function selectDataset(name){
-  await fetch("/api/dataset/sample",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name})});
-  loaded={}; await refreshDatasets(); show("overview");
-}
-$("#up-go").addEventListener("click",async()=>{
-  const fd=new FormData(); let missing=[];
-  SOURCES.forEach(s=>{const f=document.querySelector(`input[data-src="${s}"]`).files[0]; if(f)fd.append(s,f,s+".csv"); else missing.push(s);});
-  if(missing.length){$("#up-status").innerHTML=`<span class="err">missing: ${missing.join(", ")}</span>`;return;}
-  $("#up-status").textContent="uploading…";
-  const r=await fetch("/api/dataset/upload",{method:"POST",body:fd});
-  if(!r.ok){$("#up-status").innerHTML=`<span class="err">${(await r.json()).detail}</span>`;return;}
-  $("#up-status").textContent="reconciled ✓"; loaded={}; await refreshDatasets(); show("overview");
-});
+$("#g-save").addEventListener("click",async()=>{await fetch("/api/policy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enabled:$("#g-en").checked,min_confidence:parseFloat($("#g-conf").value),allowlist:$("#cat-bsm").classList.contains("on")?["bank_settlement_match"]:[]})});
+  $("#g-saved").textContent="saved ✓";setTimeout(()=>$("#g-saved").textContent="",1800);loaded={};updateGovStatus();loadOverview();});
 
-/* ---------- dataset selector ---------- */
-async function refreshDatasets(){
-  const ds=await jget("/api/dataset");
-  $("#ds").innerHTML=ds.available.map(d=>`<option ${d.name===ds.current.name?"selected":""} value="${d.name}">${d.name}</option>`).join("");
-}
+async function updateGovStatus(){const p=await jget("/api/policy");
+  $("#gov-status-txt").innerHTML=p.enabled?`Auto-resolution <b>ON</b> · confidence ${(p.min_confidence*100).toFixed(0)}%`:`Auto-resolution <b>OFF</b> · confidence ${(p.min_confidence*100).toFixed(0)}%`;
+  $("#gov-status").classList.toggle("on",p.enabled);}
+async function selectDataset(name){await fetch("/api/dataset/sample",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name})});loaded={};await refreshDatasets();show("overview");}
+async function refreshDatasets(){const ds=await jget("/api/dataset");$("#ds").innerHTML=ds.available.map(d=>`<option ${d.name===ds.current.name?"selected":""} value="${d.name}">${d.name}</option>`).join("");}
 $("#ds").addEventListener("change",e=>selectDataset(e.target.value));
 $("#run-recon").addEventListener("click",()=>{$("#ov-run").textContent="running…";setTimeout(()=>{loaded={};loadOverview();$("#ov-run").textContent="last run: just now";},350);});
 
-/* ---------- boot ---------- */
-(async()=>{try{await refreshDatasets();await loadOverview();$("#ov-run").textContent="last run: just now";}
+(async()=>{try{initCopilot();await refreshDatasets();await updateGovStatus();await loadOverview();$("#ov-run").textContent="last run: just now";}
   catch(e){document.querySelector("main").insertAdjacentHTML("afterbegin",`<div class="empty err">${e}</div>`);}})();
 </script>
 </body>

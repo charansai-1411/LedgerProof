@@ -40,9 +40,12 @@ def test_report_has_zero_cardinal(client):
 def test_exceptions_shape(client):
     rows = client.get("/api/exceptions").json()
     assert rows
-    first = rows[0]
-    for key in ("bank_txn_id", "verification", "governor_decision", "narrative"):
-        assert key in first
+    for key in ("scope", "id", "kind", "severity", "amount", "status"):
+        assert key in rows[0]
+    scopes = {r["scope"] for r in rows}
+    assert "payment" in scopes and "credit" in scopes  # both flows surfaced with domain names
+    kinds = {r["kind"] for r in rows}
+    assert kinds & {"Compound variance", "Timing mismatch", "Ambiguous settlement", "Unexplained credit"}
 
 
 def test_policy_toggle_changes_auto_resolve(client):
@@ -81,12 +84,21 @@ def test_exception_workspace_payload(client):
     creds = client.get("/api/credits").json()
     bid = next((x["bank_txn_id"] for x in creds if x["kind"] != "clean UTR"), creds[0]["bank_txn_id"])
     d = client.get(f"/api/exception/{bid}").json()
-    assert d["bank_txn_id"] == bid
-    assert d["source"]["bank"]["amount"] > 0
-    assert len(d["path"]) == 6 and d["path"][0]["step"] == "MATCH FAILED"
+    assert d["id"] == bid and d["scope"] == "credit"
+    assert len(d["records"]) == 3 and d["records"][0]["amount"] > 0
+    assert d["timeline"][0]["node"] == "BANK CREDIT" and d["timeline"][-1]["node"] == "AUDIT"
     assert "verified" in d["verification"] and "decision" in d["governor"]
     assert d["audit"] and d["trace"]
     assert client.get("/api/exception/bank_nope").status_code == 404
+
+
+def test_payment_exception_detail(client):
+    rows = client.get("/api/exceptions").json()
+    pay = next(r for r in rows if r["scope"] == "payment")
+    d = client.get(f"/api/exception/{pay['id']}").json()
+    assert d["scope"] == "payment" and d["reason"]
+    assert d["timeline"][0]["node"] == "PAYMENT"
+    assert d["governor"]["decision"] == "human_review"
 
 
 def test_transaction_has_fee_breakdown(client):
