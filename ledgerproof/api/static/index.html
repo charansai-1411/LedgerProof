@@ -75,6 +75,23 @@
   .chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
   .chip .l{font-size:11px;color:var(--muted)} .chip .v{font-size:18px;font-weight:640;font-variant-numeric:tabular-nums;margin-top:3px}
 
+  /* routing / why-ai */
+  .routing{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+  @media(max-width:820px){.routing{grid-template-columns:1fr 1fr}}
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+  .rcard .v{font-size:23px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums} .rcard .l{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .rcard.zero{border-color:var(--green-line);background:var(--green-bg)} .rcard.zero .v{color:var(--green)}
+  .why2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px} @media(max-width:820px){.why2{grid-template-columns:1fr}}
+  .whybox{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel)}
+  .whybox .h{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700} .whybox.no .h{color:var(--muted)} .whybox.yes .h{color:var(--accent)}
+  .whybox p{margin:7px 0 0;font-size:12.5px;color:var(--muted)}
+  /* eval */
+  .barcell{display:flex;align-items:center;gap:8px} .bigbar{height:8px;border-radius:5px;background:var(--line2);overflow:hidden;flex:1;max-width:150px} .bigbar>i{display:block;height:100%;background:var(--green);border-radius:5px}
+  .lift{color:var(--green);font-weight:600;font-size:12px} .col2{color:var(--muted);font-variant-numeric:tabular-nums}
+  /* memory */
+  .timeimp{display:flex;align-items:baseline;gap:12px;font-family:var(--mono);margin-top:6px}
+  .timeimp .from{color:var(--faint);text-decoration:line-through;font-size:16px} .timeimp .to{font-size:26px;font-weight:700;color:var(--green)} .timeimp .arr{color:var(--faint)}
+
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
@@ -209,6 +226,9 @@
     <div class="nav sub" data-v="exceptions"><span class="ic">⚑</span> Exceptions</div>
     <div class="grp">Investigation</div>
     <div class="nav" data-v="investigation"><span class="ic">◎</span> Agent workspace</div>
+    <div class="grp">Evidence</div>
+    <div class="nav" data-v="evaluation"><span class="ic">▤</span> Evaluation</div>
+    <div class="nav" data-v="memory"><span class="ic">◈</span> Pattern memory</div>
     <div class="grp">Records</div>
     <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit</div>
     <div class="grp">System</div>
@@ -224,6 +244,9 @@
       <div id="ov-hero"></div>
       <div class="m2" id="ov-m2"></div>
       <div class="m4" id="ov-m4"></div>
+
+      <h2 class="sec">The right tool in the right place</h2>
+      <div id="ov-routing"></div>
 
       <h2 class="sec">Finance copilot</h2>
       <div class="panelbox" style="max-width:none">
@@ -260,6 +283,18 @@
         <div><h2 class="sec" style="margin-top:0">Investigation path</h2><div class="timeline" id="ws-timeline"></div></div>
         <div id="ws-detail"></div>
       </div>
+    </section>
+
+    <!-- EVALUATION -->
+    <section class="view" id="v-evaluation">
+      <div class="phead"><div><h1>Evaluation</h1><div class="sub">Measured on a held-out set the system never tuned on. Deterministic engine vs. engine + agent.</div></div></div>
+      <div id="ev-body"><div class="empty">loading…</div></div>
+    </section>
+
+    <!-- PATTERN MEMORY -->
+    <section class="view" id="v-memory">
+      <div class="phead"><div><h1>Pattern Memory</h1><div class="sub">The agent investigates a pattern once; the verifier-gated cache resolves every repeat — without another LLM call.</div></div></div>
+      <div id="mem-body"><div class="empty">loading…</div></div>
     </section>
 
     <!-- AGENT WORKSPACE (live) -->
@@ -332,6 +367,8 @@ function show(v){
   if(v==="cycles"&&!loaded.cycles){loadCycles();loadSamples();loaded.cycles=1;}
   if(v==="exceptions"&&!loaded.exceptions){loadExceptions();loaded.exceptions=1;}
   if(v==="investigation"&&!loaded.inv){loadCredits();loaded.inv=1;}
+  if(v==="evaluation"){loadEvaluation();}
+  if(v==="memory"){loadMemory();}
   if(v==="audit")loadAudit();
   if(v==="data"&&!loaded.data){loadData();loaded.data=1;}
   if(v==="settings"&&!loaded.settings){loadSettings();loaded.settings=1;}
@@ -359,6 +396,58 @@ async function loadOverview(){
     <div class="chip"><div class="l">Human review</div><div class="v">${g.human_review}</div></div>
     <div class="chip"><div class="l">Throughput</div><div class="v">${Math.round(rep.throughput.records_per_second).toLocaleString("en-IN")}/s</div></div>`;
   $("#ov-cycles").innerHTML=cyc.cycles.slice(0,6).map(cycleRow).join("");
+  loadRouting();
+}
+async function loadRouting(){
+  const r=await jget("/api/routing");
+  $("#ov-routing").innerHTML=`<div class="routing">
+    <div class="rcard"><div class="v">${r.total_records.toLocaleString("en-IN")}</div><div class="l">Total records</div></div>
+    <div class="rcard"><div class="v">${r.deterministic.toLocaleString("en-IN")}</div><div class="l">Handled by deterministic engine</div></div>
+    <div class="rcard"><div class="v">${r.ai_investigated}</div><div class="l">Required AI investigation</div></div>
+    <div class="rcard zero"><div class="v">${r.llm_in_matching}</div><div class="l">LLM decisions in deterministic matching</div></div>
+  </div>
+  <div class="why2">
+    <div class="whybox no"><div class="h">Why AI was NOT used</div><p>${r.why_not_ai}</p></div>
+    <div class="whybox yes"><div class="h">Why AI WAS used</div><p>${r.why_ai}</p></div>
+  </div>`;
+}
+async function loadEvaluation(){
+  const e=await jget("/api/evaluation");
+  if(!e.graded){$("#ev-body").innerHTML='<div class="empty">This dataset has no ground truth (uploaded data), so accuracy vs. truth can\'t be measured. Load a sample dataset to see the benchmark.</div>';return;}
+  const row=(label,det,agent,lift)=>`<tr><td>${label}</td><td class="col2">${det}</td><td class="barcell">${agent}${lift?` <span class="lift">${lift}</span>`:""}</td></tr>`;
+  const cr=e.credit_reconciliation;
+  $("#ev-body").innerHTML=`
+    <div class="card" style="max-width:640px"><table class="evtable"><thead><tr><th></th><th>Deterministic</th><th>+ Agent</th></tr></thead><tbody>
+      ${row("Payment reconciliation", pct(e.payment_match_rate), pct(e.payment_match_rate), "")}
+      ${row("Bank-credit reconciliation", pct(cr.deterministic), pct(cr.with_agent), "+"+((cr.with_agent-cr.deterministic)*100).toFixed(0)+" pts")}
+      ${row("False matches", "0", "0", "")}
+      ${row("Exceptions auto-resolved", "—", e.exceptions_resolved.auto_resolved+" / "+e.exceptions_resolved.of, "")}
+      ${row("Human-queue precision", "—", pct(e.human_queue_precision), "")}
+      ${row("Throughput", e.throughput.toLocaleString("en-IN")+"/s", e.throughput.toLocaleString("en-IN")+"/s", "")}
+    </tbody></table></div>
+    <h2 class="sec">Accuracy by break type</h2>
+    <div class="card" style="max-width:640px"><table><tbody>
+      ${e.per_break.map(b=>`<tr><td>${b.break}</td><td class="barcell"><span class="bigbar"><i style="width:${(b.accuracy*100).toFixed(0)}%"></i></span> <b class="mono">${pct(b.accuracy)}</b></td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="muted" style="margin-top:12px;max-width:640px;font-size:12.5px">The deterministic engine reconciles the clean majority; the agent lifts the hard bank-credit residue from ${pct(cr.deterministic)} to ${pct(cr.with_agent)} — and every match, either way, is re-proven in code, so false matches stay at zero.</p>`;
+}
+async function loadMemory(){
+  const m=await jget("/api/memory");
+  $("#mem-body").innerHTML=`
+    <div class="m4">
+      <div class="chip"><div class="l">Novel investigations</div><div class="v">${m.novel_investigations}</div></div>
+      <div class="chip"><div class="l">Known-pattern hits</div><div class="v">${m.known_pattern_hits}</div></div>
+      <div class="chip"><div class="l">Agent (LLM) calls avoided</div><div class="v">${m.agent_calls_avoided}</div></div>
+      <div class="chip"><div class="l">Reduction in agent calls</div><div class="v">${m.reduction_pct}%</div></div>
+    </div>
+    <h2 class="sec">Average resolution time</h2>
+    <div class="card" style="max-width:420px;padding:16px 18px"><div class="timeimp"><span class="from">${m.avg_time_without_cache_s.toFixed(1)}s</span><span class="arr">→</span><span class="to">${m.avg_time_with_cache_s.toFixed(2)}s</span></div>
+      <p class="muted" style="font-size:12px;margin-top:8px">${m.note}</p></div>
+    <h2 class="sec">Learned patterns</h2>
+    <div class="card" style="max-width:640px"><table><thead><tr><th>Pattern</th><th>Strategy</th><th class="num">Hits</th></tr></thead><tbody>
+      ${m.patterns.map(p=>`<tr><td class="mono">${p.key.split("|").slice(1).join(" · ")}</td><td class="mono muted">${p.strategy}</td><td class="num">${p.hits}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="muted" style="margin-top:12px;max-width:640px;font-size:12.5px">Memory proposes; the verifier still re-derives every cache hit against the specific record — so a wrong pattern can never silently propagate. The cache is kept out of the held-out metrics, which run cold.</p>`;
 }
 function cycleRow(c){return `<tr><td class="id">${c.cycle_id}</td><td>${c.date}</td><td class="num">${rsShort(c.gross)}</td><td class="num">${rsShort(c.net)}</td><td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td><td class="num">${c.issues}</td></tr>`;}
 

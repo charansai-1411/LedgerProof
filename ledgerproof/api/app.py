@@ -93,6 +93,18 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def cycles() -> dict:
         return svc().cycles()
 
+    @app.get("/api/routing")
+    def routing() -> dict:
+        return svc().routing()
+
+    @app.get("/api/evaluation")
+    def evaluation() -> dict:
+        return svc().evaluation()
+
+    @app.get("/api/memory")
+    def memory() -> dict:
+        return svc().memory()
+
     @app.get("/api/exception/{bank_txn_id}")
     def exception_detail(bank_txn_id: str) -> dict:
         d = svc().exception_detail(bank_txn_id)

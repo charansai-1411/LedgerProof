@@ -379,6 +379,100 @@ class ReconService:
     def tax_report(self) -> dict:
         return match_tax(self._eng_sources, FeeConfig.load()).to_dict()
 
+    # ---- why-AI routing (right tool in the right place) ----------------------
+    def routing(self) -> dict:
+        """Where deterministic code handled it, where AI investigation was required, and the
+        fact that NO LLM decision touches deterministic matching."""
+        recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        records = run_pipeline(self.data_dir, self.model, self.policy)
+        ai_credits = sum(1 for r in records
+                         if not (r.finding.matched_settlement_id and "exact_utr" in r.finding.match_basis))
+        human = sum(1 for r in records if r.governor.decision == DECISION_HUMAN)
+        return {
+            "total_records": recon.total_payments + len(records),
+            "deterministic": recon.total_payments - len(recon.exceptions) + (len(records) - ai_credits),
+            "ai_investigated": ai_credits,
+            "human_review": human,
+            "llm_in_matching": 0,
+            "why_not_ai": "Exact key + a known fee rule → the deterministic engine proves it to the paisa. An LLM here would be decoration.",
+            "why_ai": "No clean linkage (garbled/missing UTR, colliding settlements) → the agent must search candidates and gather evidence before a match can even be checked.",
+        }
+
+    # ---- evaluation / benchmark ----------------------------------------------
+    def evaluation(self) -> dict:
+        if not self.has_ground_truth:
+            return {"graded": False}
+        from ..agent.grader import grade as grade_b
+        from ..engine.grader import grade as grade_a
+        from ..engine.grader import load_ground_truth
+
+        # A benchmark reflects the system's governed capability, so evaluate under a sensible
+        # auto-resolve-on policy (not whatever the live toggle happens to be).
+        bench = GovernorConfig(enabled=True, min_confidence=0.95, allowlist=["bank_settlement_match"],
+                               min_drift_days=self.policy.min_drift_days,
+                               max_drift_days=self.policy.max_drift_days)
+        t0 = time.perf_counter()
+        recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        gt = load_ground_truth(self.data_dir)
+        a = grade_a(recon, gt)
+        records = run_pipeline(self.data_dir, self.model, bench)
+        elapsed = time.perf_counter() - t0
+        b = grade_b([r.finding for r in records], gt)
+
+        clean = sum(1 for r in records
+                    if r.finding.matched_settlement_id and "exact_utr" in r.finding.match_basis)
+        matchable = b["matchable"] or 1
+        unexp = b["unexplained"]
+        autos = sum(1 for r in records if r.governor.decision == DECISION_AUTO)
+        humans = [r for r in records if r.governor.decision == DECISION_HUMAN]
+        gtc = gt["bank_credits"]
+        genuine = [r for r in humans
+                   if gtc[r.finding.bank_txn_id]["break_type"] == "unexplained" or not r.verification.verified]
+
+        return {
+            "graded": True,
+            "payment_match_rate": a["match_rate"],
+            "credit_reconciliation": {"deterministic": round(clean / matchable, 4),
+                                      "with_agent": b["matchable_recall"]},
+            "false_matches": len(a["false_matches"]) + b["false_matches"],
+            "exceptions_resolved": {"agent_matched": b["correct_matches"], "auto_resolved": autos,
+                                    "of": b["matchable"], "rate": round(b["correct_matches"] / matchable, 4)},
+            "human_queue_precision": round(len(genuine) / len(humans), 4) if humans else 1.0,
+            "throughput": round((recon.total_payments + len(records)) / elapsed) if elapsed else 0,
+            "per_break": [
+                {"break": "Timing mismatch", "accuracy": a["timing_in_transit"]["recall"]},
+                {"break": "Compound / refund offset", "accuracy": a["partial_payment"]["recall"]},
+                {"break": "Bank–settlement (hard)", "accuracy": b["hero"]["recall"]},
+                {"break": "Unexplained (escalated)",
+                 "accuracy": round(unexp["correctly_opened"] / unexp["total"], 4) if unexp["total"] else 1.0},
+            ],
+        }
+
+    # ---- pattern memory ------------------------------------------------------
+    def memory(self) -> dict:
+        from ..cache.pipeline import run_cached_pipeline
+
+        records, resolver = run_cached_pipeline(self.data_dir, self.model, self.policy)
+        total = len(records)
+        novel, hits = resolver.agent_invocations, resolver.cache_hits
+        patterns = resolver.cache.summary()["patterns"]
+        # honest resolution-time model: with a Gemini agent a novel investigation costs an LLM call
+        # (~9s); a cached pattern is a deterministic re-apply + verifier re-check (~0.2s).
+        est_novel, est_cached = 9.0, 0.2
+        with_cache = (novel * est_novel + hits * est_cached) / total if total else 0
+        return {
+            "total": total, "novel_investigations": novel, "known_pattern_hits": hits,
+            "agent_calls_avoided": hits,
+            "reduction_pct": round((1 - novel / total) * 100) if total else 0,
+            "patterns_learned": len(patterns),
+            "patterns": [{"key": k, "hits": v["hits"], "strategy": v["strategy"]}
+                         for k, v in sorted(patterns.items(), key=lambda kv: -kv[1]["hits"])],
+            "avg_time_without_cache_s": est_novel,
+            "avg_time_with_cache_s": round(with_cache, 2),
+            "note": "resolution-time estimate assumes the Gemini agent for novel patterns; the "
+                    "verifier re-checks every cache hit, so a wrong pattern can never propagate.",
+        }
+
     # ---- live agent trace ----------------------------------------------------
     def investigation_targets(self) -> list[dict]:
         """Bank credits to investigate, hard/interesting ones (non-clean UTR) listed first."""

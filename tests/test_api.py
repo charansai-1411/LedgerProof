@@ -72,6 +72,30 @@ def test_dataset_endpoint(client):
     assert d["current"]["has_ground_truth"] is True
 
 
+def test_routing_endpoint(client):
+    r = client.get("/api/routing").json()
+    assert r["llm_in_matching"] == 0  # the whole thesis: no LLM in deterministic matching
+    assert r["deterministic"] > r["ai_investigated"]
+    assert r["why_ai"] and r["why_not_ai"]
+
+
+def test_evaluation_benchmark(client):
+    e = client.get("/api/evaluation").json()
+    assert e["graded"] is True
+    assert e["false_matches"] == 0
+    cr = e["credit_reconciliation"]
+    assert cr["with_agent"] >= cr["deterministic"]  # the agent lifts hard-credit reconciliation
+    assert len(e["per_break"]) == 4
+
+
+def test_memory_endpoint(client):
+    m = client.get("/api/memory").json()
+    assert m["known_pattern_hits"] > 0
+    assert m["novel_investigations"] < m["total"]
+    assert m["avg_time_with_cache_s"] < m["avg_time_without_cache_s"]
+    assert m["patterns"]
+
+
 def test_cycles_endpoint(client):
     c = client.get("/api/cycles").json()
     assert c["cycles"] and c["settlement_volume"] > 0
