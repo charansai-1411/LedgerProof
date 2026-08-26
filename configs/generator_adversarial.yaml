@@ -1,0 +1,38 @@
+# Adversarial / stress-test set: deliberately nasty. Higher exception density, aggressive Seam-B
+# noise (garbled + missing UTRs, wide date drift, dense same-day collisions), heavier compound
+# and unexplained mix. Use it to see how each architecture holds up on hard cases.
+#   python -m ledgerproof.generator --config configs/generator_adversarial.yaml
+#   then in the dashboard switch to 'adversarial' and open Architecture / Evaluation.
+
+seed: 66613399            # unused elsewhere
+run_name: adversarial
+merchant_id: mrc_stress
+
+n_payments: 4000
+n_cycles: 24
+settlement_delay_days: 2
+base_date: "2026-11-01"
+
+method_mix:
+  upi: 0.40
+  card: 0.38
+  netbanking: 0.14
+  wallet: 0.08
+
+refund_rate: 0.14
+
+exception_rate: 0.11        # dense exceptions
+
+breaks:
+  compound_variance: 0.42
+  timing_in_transit: 0.30
+  duplicate: 0.10
+  unexplained: 0.18
+
+seam_b_match_rate: 0.45     # nearly half the payouts are hard matches
+
+seam_b_mess:
+  utr_garbled_rate: 0.55
+  utr_missing_rate: 0.20
+  same_day_collision_rate: 0.65
+  date_drift_days: [0, 1, 2, 3, 4]

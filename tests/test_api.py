@@ -88,6 +88,22 @@ def test_evaluation_benchmark(client):
     assert len(e["per_break"]) == 4
 
 
+def test_architecture_experiment(client):
+    a = client.get("/api/architectures").json()
+    assert a["graded"] is True
+    names = [s["system"] for s in a["systems"]]
+    assert names == ["Deterministic", "Single agent", "Multi-agent"]
+    det, single, multi = a["systems"]
+    # the agent recovers what deterministic-only leaves unresolved
+    assert single["match_accuracy"] > det["match_accuracy"]
+    # fair experiment: no false matches under any architecture (verifier gates all three)
+    assert all(s["false_match_rate"] == 0.0 for s in a["systems"])
+    # multi-agent costs more reasoning hops without beating single-agent accuracy
+    assert multi["llm_calls_per_case"] > single["llm_calls_per_case"]
+    assert multi["match_accuracy"] == single["match_accuracy"]
+    assert a["conclusion"]
+
+
 def test_memory_endpoint(client):
     m = client.get("/api/memory").json()
     assert m["known_pattern_hits"] > 0

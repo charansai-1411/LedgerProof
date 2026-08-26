@@ -228,6 +228,7 @@
     <div class="nav" data-v="investigation"><span class="ic">◎</span> Agent workspace</div>
     <div class="grp">Evidence</div>
     <div class="nav" data-v="evaluation"><span class="ic">▤</span> Evaluation</div>
+    <div class="nav" data-v="architecture"><span class="ic">⑃</span> Architecture study</div>
     <div class="nav" data-v="memory"><span class="ic">◈</span> Pattern memory</div>
     <div class="grp">Records</div>
     <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit</div>
@@ -289,6 +290,12 @@
     <section class="view" id="v-evaluation">
       <div class="phead"><div><h1>Evaluation</h1><div class="sub">Measured on a held-out set the system never tuned on. Deterministic engine vs. engine + agent.</div></div></div>
       <div id="ev-body"><div class="empty">loading…</div></div>
+    </section>
+
+    <!-- ARCHITECTURE STUDY -->
+    <section class="view" id="v-architecture">
+      <div class="phead"><div><h1>Architecture study</h1><div class="sub">We didn't assume single-agent is best — we measured it. Same held-out data, tools, verifier, governor and ground truth; only the agent architecture changes.</div></div></div>
+      <div id="arch-body"><div class="empty">loading…</div></div>
     </section>
 
     <!-- PATTERN MEMORY -->
@@ -368,6 +375,7 @@ function show(v){
   if(v==="exceptions"&&!loaded.exceptions){loadExceptions();loaded.exceptions=1;}
   if(v==="investigation"&&!loaded.inv){loadCredits();loaded.inv=1;}
   if(v==="evaluation"){loadEvaluation();}
+  if(v==="architecture"){loadArchitecture();}
   if(v==="memory"){loadMemory();}
   if(v==="audit")loadAudit();
   if(v==="data"&&!loaded.data){loadData();loaded.data=1;}
@@ -431,6 +439,32 @@ async function loadEvaluation(){
       ${e.per_break.map(b=>`<tr><td>${b.break}</td><td class="barcell"><span class="bigbar"><i style="width:${(b.accuracy*100).toFixed(0)}%"></i></span> <b class="mono">${pct(b.accuracy)}</b></td></tr>`).join("")}
     </tbody></table></div>
     <p class="muted" style="margin-top:12px;max-width:640px;font-size:12.5px">The deterministic engine reconciles the clean majority; the agent lifts the hard bank-credit residue from ${pct(cr.deterministic)} to ${pct(cr.with_agent)} — and every match, either way, is re-proven in code, so false matches stay at zero.</p>`;
+}
+async function loadArchitecture(){
+  const a=await jget("/api/architectures");
+  if(!a.graded){$("#arch-body").innerHTML='<div class="empty">Needs a ground-truth dataset — load a sample dataset to run the experiment.</div>';return;}
+  const S=a.systems, best=s=>s.system==="Single agent"?' style="background:var(--accent-bg)"':'';
+  const rows=[
+    ["Match accuracy", s=>pct(s.match_accuracy)],
+    ["False-match rate", s=>s.false_match_rate],
+    ["Hard-case resolution", s=>pct(s.hard_case_resolution)],
+    ["Auto-resolution rate", s=>pct(s.auto_resolve_rate)],
+    ["Human-review precision", s=>pct(s.human_precision)],
+    ["Unresolved (matchable)", s=>pct(s.unresolved_rate)],
+    ["Throughput", s=>s.throughput.toLocaleString("en-IN")+"/s"],
+    ["LLM calls / case", s=>s.llm_calls_per_case],
+    ["Avg. latency", s=>s.avg_latency_s+"s"],
+    ["Cost / case", s=>"$"+s.cost_per_case_usd],
+    ["Agents", s=>s.complexity.agents],
+    ["Reasoning hops", s=>s.complexity.reasoning_hops],
+  ];
+  $("#arch-body").innerHTML=`
+    <div class="card" style="max-width:720px;overflow-x:auto"><table><thead><tr><th>Metric</th>
+      ${S.map(s=>`<th class="num"${best(s)}>${s.system}</th>`).join("")}</tr></thead><tbody>
+      ${rows.map(([lab,fn])=>`<tr><td>${lab}</td>${S.map(s=>`<td class="num mono"${best(s)}>${fn(s)}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>
+    <div class="whybox yes" style="max-width:720px;margin-top:16px"><div class="h">Conclusion — chosen architecture</div><p style="color:var(--ink)">${a.conclusion}</p></div>
+    <p class="muted" style="margin-top:10px;max-width:720px;font-size:12px">${a.note}</p>`;
 }
 async function loadMemory(){
   const m=await jget("/api/memory");

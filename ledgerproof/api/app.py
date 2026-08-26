@@ -105,6 +105,10 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def memory() -> dict:
         return svc().memory()
 
+    @app.get("/api/architectures")
+    def architectures() -> dict:
+        return svc().architectures()
+
     @app.get("/api/exception/{bank_txn_id}")
     def exception_detail(bank_txn_id: str) -> dict:
         d = svc().exception_detail(bank_txn_id)
