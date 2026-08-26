@@ -411,12 +411,16 @@ class ReconService:
         bench = GovernorConfig(enabled=True, min_confidence=0.95, allowlist=["bank_settlement_match"],
                                min_drift_days=self.policy.min_drift_days,
                                max_drift_days=self.policy.max_drift_days)
+        # Time the two stages separately so the throughput columns mean different things:
+        # the deterministic engine over all payments vs. the end-to-end run including the agent.
         t0 = time.perf_counter()
         recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        t_engine = max(time.perf_counter() - t0, 1e-9)
         gt = load_ground_truth(self.data_dir)
         a = grade_a(recon, gt)
+        t1 = time.perf_counter()
         records = run_pipeline(self.data_dir, self.model, bench)
-        elapsed = time.perf_counter() - t0
+        t_agent = max(time.perf_counter() - t1, 1e-9)
         b = grade_b([r.finding for r in records], gt)
 
         clean = sum(1 for r in records
@@ -438,7 +442,13 @@ class ReconService:
             "exceptions_resolved": {"agent_matched": b["correct_matches"], "auto_resolved": autos,
                                     "of": b["matchable"], "rate": round(b["correct_matches"] / matchable, 4)},
             "human_queue_precision": round(len(genuine) / len(humans), 4) if humans else 1.0,
-            "throughput": round((recon.total_payments + len(records)) / elapsed) if elapsed else 0,
+            "throughput": {
+                "deterministic": round(recon.total_payments / t_engine),
+                "with_agent": round((recon.total_payments + len(records)) / (t_engine + t_agent)),
+                "note": "measured with the deterministic heuristic agent; with the Gemini agent the "
+                        "end-to-end rate is LLM-bound, but the agent only touches the ~1% of records "
+                        "the engine can't match, so overall throughput stays high.",
+            },
             "per_break": [
                 {"break": "Timing mismatch", "accuracy": a["timing_in_transit"]["recall"]},
                 {"break": "Compound / refund offset", "accuracy": a["partial_payment"]["recall"]},

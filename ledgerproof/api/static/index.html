@@ -423,8 +423,9 @@ async function loadEvaluation(){
       ${row("False matches", "0", "0", "")}
       ${row("Exceptions auto-resolved", "—", e.exceptions_resolved.auto_resolved+" / "+e.exceptions_resolved.of, "")}
       ${row("Human-queue precision", "—", pct(e.human_queue_precision), "")}
-      ${row("Throughput", e.throughput.toLocaleString("en-IN")+"/s", e.throughput.toLocaleString("en-IN")+"/s", "")}
+      ${row("Throughput", e.throughput.deterministic.toLocaleString("en-IN")+"/s", e.throughput.with_agent.toLocaleString("en-IN")+"/s", "")}
     </tbody></table></div>
+    <p class="muted" style="margin-top:8px;max-width:640px;font-size:12px">${e.throughput.note}</p>
     <h2 class="sec">Accuracy by break type</h2>
     <div class="card" style="max-width:640px"><table><tbody>
       ${e.per_break.map(b=>`<tr><td>${b.break}</td><td class="barcell"><span class="bigbar"><i style="width:${(b.accuracy*100).toFixed(0)}%"></i></span> <b class="mono">${pct(b.accuracy)}</b></td></tr>`).join("")}
