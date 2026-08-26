@@ -114,6 +114,13 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def architectures() -> dict:
         return svc().architectures()
 
+    @app.get("/api/matrix")
+    def matrix() -> dict:
+        path = REPO_ROOT / "docs" / "results_matrix.json"
+        if not path.exists():
+            return {"available": False}
+        return {"available": True, **json.loads(path.read_text(encoding="utf-8"))}
+
     @app.post("/api/scenario")
     def scenario(req: ScenarioRequest) -> dict:
         from .scenario import run_scenario

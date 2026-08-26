@@ -230,6 +230,7 @@
     <div class="grp">Evidence</div>
     <div class="nav" data-v="evaluation"><span class="ic">▤</span> Evaluation</div>
     <div class="nav" data-v="architecture"><span class="ic">⑃</span> Architecture study</div>
+    <div class="nav" data-v="benchmark"><span class="ic">▦</span> Benchmark matrix</div>
     <div class="nav" data-v="memory"><span class="ic">◈</span> Pattern memory</div>
     <div class="grp">Records</div>
     <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit</div>
@@ -297,6 +298,12 @@
     <section class="view" id="v-architecture">
       <div class="phead"><div><h1>Architecture study</h1><div class="sub">We didn't assume single-agent is best — we measured it. Same held-out data, tools, verifier, governor and ground truth; only the agent architecture changes.</div></div></div>
       <div id="arch-body"><div class="empty">loading…</div></div>
+    </section>
+
+    <!-- BENCHMARK MATRIX -->
+    <section class="view" id="v-benchmark">
+      <div class="phead"><div><h1>Benchmark matrix</h1><div class="sub">Three business profiles × three difficulty levels, generated large and reconciled cold (no cache). Only the agent architecture varies.</div></div></div>
+      <div id="bm-body"><div class="empty">loading…</div></div>
     </section>
 
     <!-- PATTERN MEMORY -->
@@ -393,6 +400,7 @@ function show(v){
   if(v==="scenario"){}
   if(v==="evaluation"){loadEvaluation();}
   if(v==="architecture"){loadArchitecture();}
+  if(v==="benchmark"){loadBenchmark();}
   if(v==="memory"){loadMemory();}
   if(v==="audit")loadAudit();
   if(v==="data"&&!loaded.data){loadData();loaded.data=1;}
@@ -482,6 +490,25 @@ async function loadArchitecture(){
     </tbody></table></div>
     <div class="whybox yes" style="max-width:720px;margin-top:16px"><div class="h">Conclusion — chosen architecture</div><p style="color:var(--ink)">${a.conclusion}</p></div>
     <p class="muted" style="margin-top:10px;max-width:720px;font-size:12px">${a.note}</p>`;
+}
+async function loadBenchmark(){
+  const d=await jget("/api/matrix");
+  if(!d.available){$("#bm-body").innerHTML='<div class="empty">No matrix yet. Run <span class="mono">python scripts/matrix_benchmark.py</span> to generate it.</div>';return;}
+  const rows=d.rows, pcv=x=>(x*100).toFixed(0)+"%";
+  const bizLabel={small_b2b:"Small B2B",medium:"Medium",enterprise:"Enterprise"};
+  const accRows=rows.map(r=>`<tr><td>${bizLabel[r.biz]||r.biz}</td><td>${r.diff}</td><td class="num">${r.payments.toLocaleString("en-IN")}</td><td class="num">${r.credits}</td>
+    <td class="num col2">${pcv(r.det_acc)}</td><td class="num" style="background:var(--accent-bg);font-weight:600">${pcv(r.single_acc)}</td><td class="num col2">${pcv(r.multi_acc)}</td>
+    <td class="num mono" style="color:var(--green)">${r.false}</td></tr>`).join("");
+  const costRows=rows.map(r=>{const ratio=r.single_cost?(r.multi_cost/r.single_cost).toFixed(1):"—";
+    return `<tr><td>${bizLabel[r.biz]||r.biz}</td><td>${r.diff}</td><td class="num mono">${r.single_calls}</td><td class="num mono">${r.multi_calls}</td>
+    <td class="num mono">$${r.single_cost}</td><td class="num mono">$${r.multi_cost}</td><td class="num mono">${ratio}×</td></tr>`;}).join("");
+  $("#bm-body").innerHTML=`
+    <div class="card" style="max-width:760px;overflow-x:auto"><table><thead><tr><th>Business</th><th>Difficulty</th><th class="num">Payments</th><th class="num">Credits</th>
+      <th class="num">Determin.</th><th class="num">Single</th><th class="num">Multi</th><th class="num">False</th></tr></thead><tbody>${accRows}</tbody></table></div>
+    <h2 class="sec">Single vs multi-agent — same accuracy, higher cost</h2>
+    <div class="card" style="max-width:640px;overflow-x:auto"><table><thead><tr><th>Business</th><th>Difficulty</th><th class="num">Single calls</th><th class="num">Multi calls</th><th class="num">Single $</th><th class="num">Multi $</th><th class="num">Ratio</th></tr></thead><tbody>${costRows}</tbody></table></div>
+    <div class="whybox yes" style="max-width:760px;margin-top:16px"><div class="h">Conclusion</div><p style="color:var(--ink)">${d.conclusion}</p></div>
+    <p class="muted" style="margin-top:10px;font-size:12px">Generated ${d.generated}. Accuracy & false-match measured against hidden ground truth; latency/cost modeled from measured LLM-call counts. Reconciled cold — the pattern cache is off during evaluation.</p>`;
 }
 async function loadMemory(){
   const m=await jget("/api/memory");
