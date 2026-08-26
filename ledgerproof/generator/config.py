@@ -49,6 +49,8 @@ class GeneratorConfig:
     seam_b_match_rate: float
     seam_b_mess: dict[str, Any]
     fees: FeeConfig = field(default_factory=FeeConfig.load)
+    amount_min_rupees: int = 100       # transaction value band (varies by business profile)
+    amount_max_rupees: int = 50000
 
     @classmethod
     def load(
@@ -74,6 +76,8 @@ class GeneratorConfig:
             seam_b_match_rate=float(raw["seam_b_match_rate"]),
             seam_b_mess=dict(raw["seam_b_mess"]),
             fees=FeeConfig.load(fees_path),
+            amount_min_rupees=int(raw.get("amount_min_rupees", 100)),
+            amount_max_rupees=int(raw.get("amount_max_rupees", 50000)),
         )
         if seed_override is not None:
             cfg.seed = seed_override

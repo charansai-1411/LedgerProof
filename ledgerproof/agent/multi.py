@@ -1,21 +1,30 @@
 """Alternative Seam-B architectures, for a fair single-vs-multi-agent experiment.
 
-All three plug into the SAME pipeline (same tools, verifier, governor, ground truth); only the
+All plug into the SAME pipeline (same tools, verifier, governor, ground truth); only the
 investigation architecture changes:
 
-  - DeterministicOnlyModel  — no investigation: match only on an exact, unique key, open the rest.
-  - HeuristicAgentModel      — one tool-using investigator (in heuristic.py).
-  - MultiAgentModel          — a router/triage + specialists (settlement / refund / timing),
-                               then the same deterministic verifier.
+  - DeterministicOnlyModel — no investigation: match only on an exact, unique key; open the rest.
+  - HeuristicAgentModel     — one tool-using investigator (heuristic.py).
+  - MultiAgentModel         — router/triage -> a GENUINELY distinct specialist -> fallback chain,
+                              then the same deterministic verifier (in the pipeline).
 
-The specialists ultimately reconcile through the same core search, so accuracy is a fair tie —
-the multi-agent's difference is the extra reasoning hops (router + specialist, sometimes a
-re-route), which the experiment counts per case to price latency and cost.
+The three specialists have DIFFERENT search logic:
+  * SettlementSpecialist — exact-UTR, else narrow T+2 window on the net-amount envelope.
+  * TimingSpecialist     — a wider T+3 (+1) window, for credits that drifted / are in transit.
+  * RefundSpecialist     — refund add-back: a settlement whose net + its refunded amount equals
+                           the credit (i.e. the credit posted before a refund was netted).
+
+Fairness: the union of the settlement + timing specialists' windows equals the single agent's
+own coverage, so the experiment isolates ARCHITECTURE (routing hops), not raw search capability.
+The model records its route and resolver distribution so it can be shown to actually be
+multi-agent (each specialist fires), not a router over one core.
 """
 
 from __future__ import annotations
 
-from .heuristic import HeuristicAgentModel
+from collections import Counter
+
+from .heuristic import HeuristicAgentModel, _rs
 from .model import AgentFinding, AgentModel
 from .tools import SeamBToolbox
 
@@ -37,47 +46,104 @@ class DeterministicOnlyModel(AgentModel):
                             "No deterministic key. A baseline with no agent leaves this open.")
 
 
-class MultiAgentModel(AgentModel):
-    """Architecture C: router/triage → specialist → (deterministic verifier, in the pipeline).
+# ---- genuine specialists (each returns a finding, or None to defer) ----------
+class SettlementSpecialist:
+    name = "settlement"
 
-    Tracks reasoning hops per case so the experiment can price latency/cost honestly.
-    """
+    def investigate(self, bid, tools):
+        bc = tools.get_bank_credit(bid)
+        s = tools.find_settlement_by_utr(bc.utr)
+        if s is not None and s.amount == bc.credit_amount:
+            return AgentFinding(bid, s.settlement_id, 0.99, ["exact_utr", "net_amount"],
+                                [f"UTR uniquely identifies {s.settlement_id}; net matches to the paisa"],
+                                f"Settlement specialist: clean UTR -> {s.settlement_id}.")
+        cands = tools.get_settlements_in_window(bc.value_date, 2, 0)
+        exact = [c for c in cands if c.amount == bc.credit_amount]
+        if len(exact) == 1:
+            cand = exact[0]
+            conf = HeuristicAgentModel._confidence(bc, cand, [c for c in cands if c is not cand], widened=False)
+            return AgentFinding(bid, cand.settlement_id, conf, ["date_window", "net_amount"],
+                                [f"{len(cands)} settlements in the T+2 window; only {cand.settlement_id} nets to "
+                                 f"{_rs(cand.amount)} == credit to the paisa"],
+                                f"Settlement specialist: matched {cand.settlement_id} in the T+2 window.")
+        return None
+
+
+class TimingSpecialist:
+    name = "timing"
+
+    def investigate(self, bid, tools):
+        bc = tools.get_bank_credit(bid)
+        cands = tools.get_settlements_in_window(bc.value_date, 3, 1)  # wider horizon (drift / in-transit)
+        exact = [c for c in cands if c.amount == bc.credit_amount]
+        if len(exact) == 1:
+            cand = exact[0]
+            conf = HeuristicAgentModel._confidence(bc, cand, [c for c in cands if c is not cand], widened=True)
+            return AgentFinding(bid, cand.settlement_id, conf, ["timing_window", "net_amount"],
+                                [f"credit drifted; widening to T+3 found {cand.settlement_id} netting to "
+                                 f"{_rs(cand.amount)} == credit"],
+                                f"Timing specialist: matched {cand.settlement_id} in the widened window.")
+        return None
+
+
+class RefundSpecialist:
+    name = "refund"
+
+    def investigate(self, bid, tools):
+        bc = tools.get_bank_credit(bid)
+        for c in tools.get_settlements_in_window(bc.value_date, 3, 1):
+            refunds = sum(r.refund_deduction for r in tools.explode_settlement(c.settlement_id))
+            if refunds > 0 and c.amount + refunds == bc.credit_amount:
+                return AgentFinding(bid, c.settlement_id, 0.9, ["refund_addback", "net_amount"],
+                                    [f"credit equals {c.settlement_id} net {_rs(c.amount)} + refunded "
+                                     f"{_rs(refunds)} — the credit posted before the refund was netted"],
+                                    f"Refund specialist: refund add-back matched {c.settlement_id}.")
+        return None
+
+
+class MultiAgentModel(AgentModel):
+    """Architecture C: router/triage -> a real specialist -> fallback chain. Verifier stays in the pipeline."""
 
     name = "multi"
 
     def __init__(self) -> None:
-        self._core = HeuristicAgentModel()  # the shared reconciliation search
+        self.settlement = SettlementSpecialist()
+        self.timing = TimingSpecialist()
+        self.refund = RefundSpecialist()
         self.total_hops = 0
         self.cases = 0
-        self.reroutes = 0
+        self.routes: Counter = Counter()
+        self.resolved_by: Counter = Counter()
 
     def investigate(self, bank_txn_id: str, tools: SeamBToolbox) -> AgentFinding:
         self.cases += 1
         bc = tools.get_bank_credit(bank_txn_id)
 
-        # hop 1 — router / triage
-        self.total_hops += 1
+        self.total_hops += 1  # hop 1 — router / triage
         route = self._route(bank_txn_id, tools, bc)
+        self.routes[route] += 1
 
-        # hop 2 — the chosen specialist (all reconcile via the shared core search)
-        self.total_hops += 1
-        finding = self._core.investigate(bank_txn_id, tools)
-
-        # hop 3 (sometimes) — if a non-timing specialist opened it, the timing specialist re-checks
-        if finding.matched_settlement_id is None and route != "timing":
+        # dispatch to the chosen specialist first, then fall back to the others (each hop counts)
+        order = {
+            "settlement": [self.settlement, self.timing, self.refund],
+            "timing": [self.timing, self.settlement, self.refund],
+            "refund": [self.refund, self.timing, self.settlement],
+        }[route]
+        for spec in order:
             self.total_hops += 1
-            self.reroutes += 1
-            # core already widens the window; a real timing agent would re-run with a longer horizon
-            finding = self._core.investigate(bank_txn_id, tools)
-        return finding
+            finding = spec.investigate(bank_txn_id, tools)
+            if finding is not None:
+                self.resolved_by[spec.name] += 1
+                return finding
 
-    @staticmethod
-    def _route(bank_txn_id: str, tools: SeamBToolbox, bc) -> str:
-        """Cheap triage: pick which specialist should handle this credit."""
+        return AgentFinding(bank_txn_id, None, 0.0, [],
+                            [f"no specialist reconciled the credit {_rs(bc.credit_amount)}"],
+                            "No specialist could reconcile it — opened for review, not forced.")
+
+    def _route(self, bid, tools, bc) -> str:
         if bc.utr and tools.find_settlement_by_utr(bc.utr) is not None:
             return "settlement"
-        cands = tools.get_settlements_in_window(bc.value_date, 2, 0)
-        if any(c.amount == bc.credit_amount for c in cands):
+        if any(c.amount == bc.credit_amount for c in tools.get_settlements_in_window(bc.value_date, 2, 0)):
             return "settlement"
         if any(c.amount == bc.credit_amount for c in tools.get_settlements_in_window(bc.value_date, 3, 1)):
             return "timing"

@@ -226,6 +226,7 @@
     <div class="nav sub" data-v="exceptions"><span class="ic">⚑</span> Exceptions</div>
     <div class="grp">Investigation</div>
     <div class="nav" data-v="investigation"><span class="ic">◎</span> Agent workspace</div>
+    <div class="nav" data-v="scenario"><span class="ic">⚗</span> Scenario lab</div>
     <div class="grp">Evidence</div>
     <div class="nav" data-v="evaluation"><span class="ic">▤</span> Evaluation</div>
     <div class="nav" data-v="architecture"><span class="ic">⑃</span> Architecture study</div>
@@ -304,6 +305,21 @@
       <div id="mem-body"><div class="empty">loading…</div></div>
     </section>
 
+    <!-- SCENARIO LAB -->
+    <section class="view" id="v-scenario">
+      <div class="phead"><div><h1>Scenario Lab</h1><div class="sub">Generate a fresh workload at a chosen difficulty and stress-test the pipeline live. The number that must stay zero is <b>incorrect resolutions</b>.</div></div></div>
+      <div class="panelbox" style="max-width:none">
+        <div class="ask" style="align-items:center">
+          <div class="ctl"><label class="muted" style="font-size:12px">Difficulty</label><br>
+            <select id="sc-diff"><option value="easy">Easy</option><option value="realistic" selected>Realistic</option><option value="adversarial">Adversarial</option></select></div>
+          <div class="ctl"><label class="muted" style="font-size:12px">Records: <b id="sc-n-v" class="mono">4000</b></label><br>
+            <input type="range" id="sc-n" min="1000" max="20000" step="1000" value="4000" style="width:200px"></div>
+          <button class="btn primary" id="sc-go">Run stress test ▸</button>
+        </div>
+        <div id="sc-result" style="margin-top:18px"></div>
+      </div>
+    </section>
+
     <!-- AGENT WORKSPACE (live) -->
     <section class="view" id="v-investigation">
       <div class="phead"><div><h1>Agent Workspace</h1><div class="sub">Pick a bank credit and watch the agent investigate live — search, score candidates, reason, verify, govern.</div></div></div>
@@ -374,6 +390,7 @@ function show(v){
   if(v==="cycles"&&!loaded.cycles){loadCycles();loadSamples();loaded.cycles=1;}
   if(v==="exceptions"&&!loaded.exceptions){loadExceptions();loaded.exceptions=1;}
   if(v==="investigation"&&!loaded.inv){loadCredits();loaded.inv=1;}
+  if(v==="scenario"){}
   if(v==="evaluation"){loadEvaluation();}
   if(v==="architecture"){loadArchitecture();}
   if(v==="memory"){loadMemory();}
@@ -590,6 +607,30 @@ function closeDrawer(){$("#drawer").classList.remove("show");$("#drawer-bg").cla
 $("#drawer-x").addEventListener("click",closeDrawer);$("#drawer-bg").addEventListener("click",closeDrawer);
 
 /* live agent */
+/* ---------- scenario lab ---------- */
+$("#sc-n").addEventListener("input",e=>$("#sc-n-v").textContent=e.target.value);
+$("#sc-go").addEventListener("click",async()=>{
+  const diff=$("#sc-diff").value, records=parseInt($("#sc-n").value);
+  const box=$("#sc-result"); $("#sc-go").disabled=true;
+  box.innerHTML='<div class="muted">generating a fresh '+diff+' workload and stress-testing (cold, no cache)…</div>';
+  try{
+    const r=await (await fetch("/api/scenario",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({difficulty:diff,records})})).json();
+    const zero=r.incorrect_resolutions===0;
+    box.innerHTML=`
+      <div class="hero ${zero?'':'warn'}" style="margin-bottom:14px"><div class="big">${zero?'<span class="chk">✓</span>0':r.incorrect_resolutions}</div>
+        <div class="txt"><div class="k">Incorrect resolutions</div><div class="d">${zero?'Not a single credit matched to the wrong settlement, even under '+diff+' stress. The verifier gated every proposed match.':'A wrong match slipped through — investigate.'}</div></div></div>
+      <div class="m4">
+        <div class="chip"><div class="l">Bank credits</div><div class="v">${r.credits}</div></div>
+        <div class="chip"><div class="l">Correctly resolved</div><div class="v" style="color:var(--green)">${r.correctly_resolved}</div></div>
+        <div class="chip"><div class="l">Correctly rejected (opened)</div><div class="v">${r.correctly_rejected}</div></div>
+        <div class="chip"><div class="l">Escalated to human</div><div class="v">${r.human_escalated}</div></div>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:12.5px">Generated ${r.records.toLocaleString("en-IN")} payments · ${r.matchable} matchable credits · ${r.missed} honestly left open (agent unsure) · reconciled in ${r.seconds}s. False-match rate ${r.false_match_rate}.</p>`;
+  }catch(e){box.innerHTML=`<div class="err">error: ${e}</div>`;}
+  $("#sc-go").disabled=false;
+});
+
+/* ---------- live agent ---------- */
 async function loadCredits(){try{const rows=await jget("/api/credits");
   $("#inv-credit").innerHTML=rows.map(r=>`<option value="${r.bank_txn_id}">${r.bank_txn_id} — ${r.kind} — ${rsShort(r.amount)}</option>`).join("");}catch(e){}}
 let _es=null;

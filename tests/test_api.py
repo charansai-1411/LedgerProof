@@ -104,6 +104,42 @@ def test_architecture_experiment(client):
     assert a["conclusion"]
 
 
+def test_scenario_stress_test(client):
+    r = client.post("/api/scenario", json={"difficulty": "adversarial", "records": 1000}).json()
+    assert r["incorrect_resolutions"] == 0  # the number that must stay zero, even adversarial
+    assert r["false_match_rate"] == 0.0
+    assert r["correctly_resolved"] + r["missed"] == r["matchable"]
+    assert client.post("/api/scenario", json={"difficulty": "nope", "records": 1000}).status_code == 400
+
+
+def test_multi_agent_is_genuinely_multi(tmp_path_factory):
+    """Guard against regressing to a router-over-one-core: distinct specialists must resolve cases."""
+    from ledgerproof.agent.loader import load_seam_b
+    from ledgerproof.agent.multi import MultiAgentModel
+    from ledgerproof.agent.tools import SeamBToolbox
+    from ledgerproof.generator.config import REPO_ROOT, GeneratorConfig
+    from ledgerproof.generator.generate import Generator
+    from ledgerproof.generator.writers import write_dataset
+
+    # a harsh set so the timing specialist (wider window) fires alongside the settlement one
+    cfg = GeneratorConfig.load(REPO_ROOT / "configs" / "generator.yaml",
+                               seed_override=77, run_name_override="multi_test")
+    cfg.n_payments = 2500
+    cfg.seam_b_match_rate = 0.45
+    cfg.seam_b_mess = {"utr_garbled_rate": 0.55, "utr_missing_rate": 0.20,
+                       "same_day_collision_rate": 0.65, "date_drift_days": [0, 1, 2, 3, 4]}
+    ds = Generator(cfg).generate()
+    out = write_dataset(ds, cfg, out_root=tmp_path_factory.mktemp("data"))
+
+    tools = SeamBToolbox(load_seam_b(out))
+    m = MultiAgentModel()
+    for bid in tools.all_bank_txn_ids():
+        m.investigate(bid, tools)
+    # more than one specialist actually resolved cases, and hops > 1 (a router + specialist chain)
+    assert len([k for k, v in m.resolved_by.items() if v > 0]) >= 2
+    assert m.avg_hops() > 1.0
+
+
 def test_memory_endpoint(client):
     m = client.get("/api/memory").json()
     assert m["known_pattern_hits"] > 0

@@ -30,6 +30,11 @@ class SampleSelect(BaseModel):
     name: str
 
 
+class ScenarioRequest(BaseModel):
+    difficulty: str
+    records: int = 4000
+
+
 def _available_datasets() -> list[dict]:
     out = []
     if DATA_ROOT.exists():
@@ -108,6 +113,14 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     @app.get("/api/architectures")
     def architectures() -> dict:
         return svc().architectures()
+
+    @app.post("/api/scenario")
+    def scenario(req: ScenarioRequest) -> dict:
+        from .scenario import run_scenario
+        try:
+            return run_scenario(req.difficulty, req.records)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/api/exception/{bank_txn_id}")
     def exception_detail(bank_txn_id: str) -> dict:

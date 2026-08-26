@@ -72,7 +72,7 @@ class Generator:
         payments: list[Payment] = []
         for _ in range(self.cfg.n_payments):
             method = self.rng.choices(methods, weights=weights, k=1)[0]
-            gross = self._rupees(100, 50000)
+            gross = self._rupees(self.cfg.amount_min_rupees, self.cfg.amount_max_rupees)
             capture_day = self.rng.randrange(self.cfg.n_cycles)
             p = Payment(
                 payment_id=self._rid("pay_"),
