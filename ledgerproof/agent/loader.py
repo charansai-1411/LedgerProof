@@ -13,6 +13,13 @@ def _int(v):
     return None if v is None else int(v)
 
 
+def _col(row, name: str, default=0):
+    """Read a column that may be absent in a dataset generated before it was added."""
+    if name not in row.keys() or row[name] is None:
+        return default
+    return int(row[name]) if isinstance(default, int) else row[name]
+
+
 @dataclass
 class SeamBSources:
     settlements: list[Settlement]
@@ -38,6 +45,8 @@ def load_seam_b(data_dir: str | Path) -> SeamBSources:
                 reserve_release=_int(r["reserve_release"]),
                 status=r["status"],
                 created_at=r["created_at"],
+                tds=_col(r, "tds"),
+                utr_batch_id=_col(r, "utr_batch_id", ""),
             )
             for r in conn.execute("SELECT * FROM settlements")
         ]
@@ -61,6 +70,8 @@ def load_seam_b(data_dir: str | Path) -> SeamBSources:
                 gst_on_mdr=int(r["gst_on_mdr"]),
                 refund_deduction=int(r["refund_deduction"]),
                 net_amount=int(r["net_amount"]),
+                tds=_col(r, "tds"),
+                reserve=_col(r, "reserve"),
             )
             for r in conn.execute("SELECT * FROM settlement_report")
         ]

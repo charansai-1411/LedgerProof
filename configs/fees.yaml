@@ -4,10 +4,11 @@
 # matter, not exact basis points). All money is integer paise.
 
 gst_rate_bps: 1800            # 18% GST, applied to the MDR fee
+tds_rate_bps: 10              # 0.1% TDS on gross under Sec 194-O (e-commerce marketplace)
 
 methods:
   upi:        { mdr_bps: 0,   flat_paise: 0 }      # ~0% — NO fee gap (UPI-zero-fee trap)
-  card:       { mdr_bps: 200, flat_paise: 0 }      # ~2%
+  card:       { mdr_bps: 200, flat_paise: 0 }      # ~2% domestic card
   netbanking: { mdr_bps: 0,   flat_paise: 1000 }   # flat Rs 10
   wallet:     { mdr_bps: 150, flat_paise: 0 }      # ~1.5%
 

@@ -21,6 +21,7 @@ class FeeConfig:
     methods: dict[str, dict[str, int]]
     reserve_rate_bps: int
     reserve_applies_to: list[str]
+    tds_rate_bps: int = 10  # 0.1% Sec 194-O TDS on gross (default keeps old configs loadable)
 
     @classmethod
     def load(cls, path: Path | str = DEFAULT_FEES) -> "FeeConfig":
@@ -30,7 +31,25 @@ class FeeConfig:
             methods={m: {k: int(v) for k, v in cfg.items()} for m, cfg in raw["methods"].items()},
             reserve_rate_bps=int(raw["reserve"]["rate_bps"]),
             reserve_applies_to=list(raw["reserve"]["applies_to"]),
+            tds_rate_bps=int(raw.get("tds_rate_bps", 10)),
         )
+
+    def describe(self, method: str) -> dict:
+        """Human/agent-readable fee policy for one instrument — backs get_fee_configuration.
+
+        This is the source the deterministic verifier re-derives against: if an agent attributes a
+        gap to a fee this policy says is zero (e.g. MDR on UPI), the claim is provably wrong.
+        """
+        m = self.methods.get(method, {"mdr_bps": 0, "flat_paise": 0})
+        return {
+            "method": method,
+            "mdr_bps": m["mdr_bps"],
+            "mdr_flat_paise": m["flat_paise"],
+            "gst_rate_bps": self.gst_rate_bps,
+            "tds_rate_bps": self.tds_rate_bps,
+            "reserve_rate_bps": self.reserve_rate_bps if method in self.reserve_applies_to else 0,
+            "has_mdr": m["mdr_bps"] > 0 or m["flat_paise"] > 0,
+        }
 
 
 @dataclass

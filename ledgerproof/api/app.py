@@ -114,6 +114,21 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def architectures() -> dict:
         return svc().architectures()
 
+    @app.get("/api/waterfall")
+    def waterfall() -> dict:
+        return svc().waterfall()
+
+    @app.get("/api/guardrail")
+    def guardrail() -> dict:
+        return svc().guardrail_demo()
+
+    @app.get("/api/journal/{item_id}")
+    def journal(item_id: str) -> dict:
+        j = svc().journal_entry(item_id)
+        if j is None:
+            raise HTTPException(status_code=404, detail=f"no reconciled item '{item_id}'")
+        return j
+
     @app.get("/api/matrix")
     def matrix() -> dict:
         path = REPO_ROOT / "docs" / "results_matrix.json"

@@ -25,6 +25,12 @@ REQUIRED: dict[str, list[str]] = {
     "internal_ledger": ["ledger_entry_id", "order_id", "payment_id", "booked_amount", "booked_at"],
 }
 
+# optional line items carried through when the upload itemizes them (Razorpay reports do)
+OPTIONAL: dict[str, list[str]] = {
+    "settlement_report": ["tds", "reserve"],
+    "settlements": ["tds", "utr_batch_id"],
+}
+
 
 class ImportError_(ValueError):
     pass
@@ -38,10 +44,12 @@ def _parse_csv(name: str, data: bytes) -> tuple[list[str], list[dict]]:
     missing = [c for c in required if c not in header]
     if missing:
         raise ImportError_(f"{name}.csv is missing columns: {', '.join(missing)}")
+    # carry any optional line items the upload actually provides (e.g. itemized TDS/reserve)
+    cols = required + [c for c in OPTIONAL.get(name, []) if c in header]
     rows = list(reader)
     if not rows:
         raise ImportError_(f"{name}.csv has no data rows")
-    return required, rows
+    return cols, rows
 
 
 def import_dataset(files: dict[str, bytes], out_dir: Path) -> dict:
@@ -57,8 +65,8 @@ def import_dataset(files: dict[str, bytes], out_dir: Path) -> dict:
     conn = sqlite3.connect(db_path)
     counts: dict[str, int] = {}
     try:
-        for name, cols in REQUIRED.items():
-            _, rows = _parse_csv(name, files[name])
+        for name in REQUIRED:
+            cols, rows = _parse_csv(name, files[name])
             # persist a normalized CSV copy
             with (out_dir / f"{name}.csv").open("w", newline="", encoding="utf-8") as fh:
                 w = csv.DictWriter(fh, fieldnames=cols)

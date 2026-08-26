@@ -140,6 +140,82 @@ def test_multi_agent_is_genuinely_multi(tmp_path_factory):
     assert m.avg_hops() > 1.0
 
 
+def test_waterfall_matrix(client):
+    w = client.get("/api/waterfall").json()
+    stages = {s["stage"]: s for s in w["stages"]}
+    assert "Gross PG captures ingested" in stages
+    ingested = stages["Gross PG captures ingested"]
+    assert ingested["volume"] > 0 and ingested["value"] > 0
+    # the three agent sub-rows sum to the investigated total (nothing lost)
+    investigated = next(s for s in w["stages"] if s["stage"].startswith("Agent-investigated"))
+    subs = [s for s in w["stages"] if s["depth"] == 1]
+    assert sum(s["volume"] for s in subs) == investigated["volume"]
+    assert w["false_match_rate"] == 0.0  # graded set: zero false matches across the waterfall
+
+
+def test_guardrail_blocks_hallucinated_fee(client):
+    g = client.get("/api/guardrail").json()
+    assert g["available"] is True
+    # identical match + policy; the clean one auto-resolves, the poisoned one is quarantined
+    assert g["control"]["governor_action"] == "AUTO_RESOLVED"
+    assert g["control"]["verified"] is True
+    assert g["poisoned"]["governor_action"] == "QUARANTINED_TO_HUMAN"
+    assert g["poisoned"]["verified"] is False
+    assert g["poisoned"]["verifier_checks"]["fee_claim_matches_policy"] is False
+    assert "UPI" in g["poisoned"]["verifier_result"] or "upi" in g["poisoned"]["verifier_result"]
+
+
+def test_journal_entry_balances(client):
+    """Every reconciled credit posts a double-entry that balances to the paise."""
+    creds = client.get("/api/credits").json()
+    bid = next((x["bank_txn_id"] for x in creds if x["kind"] == "clean UTR"), creds[0]["bank_txn_id"])
+    j = client.get(f"/api/journal/{bid}").json()
+    assert j["available"] is True
+    assert j["balanced"] is True
+    assert j["total_debit"] == j["total_credit"]
+    # the customer sale is the single credit; deductions + bank are the debits
+    credit_lines = [l for l in j["lines"] if l["side"] == "credit"]
+    assert credit_lines and credit_lines[0]["account"].startswith("Accounts receivable")
+    assert any(l["account"].startswith("Bank account") for l in j["lines"])
+
+
+def test_fee_configuration_tool_upi_has_no_mdr():
+    """The get_fee_configuration tool reports UPI's zero MDR — the fact the guardrail rests on."""
+    from ledgerproof.agent.loader import load_seam_b
+    from ledgerproof.agent.tools import SeamBToolbox
+    from ledgerproof.generator.config import FeeConfig, GeneratorConfig
+    from ledgerproof.generator.generate import Generator
+    from ledgerproof.generator.writers import write_dataset
+    import tempfile
+    from pathlib import Path
+
+    fees = FeeConfig.load()
+    upi = fees.describe("upi")
+    assert upi["mdr_bps"] == 0 and upi["has_mdr"] is False
+    assert upi["tds_rate_bps"] > 0  # TDS (194-O) still applies to UPI
+    assert fees.describe("card")["has_mdr"] is True
+
+    # the tool surfaces the same policy to the agent
+    cfg = GeneratorConfig.load(CONFIG, seed_override=31, run_name_override="feetool")
+    cfg.n_payments = 300
+    ds = Generator(cfg).generate()
+    out = write_dataset(ds, cfg, out_root=Path(tempfile.mkdtemp()))
+    tools = SeamBToolbox(load_seam_b(out))
+    assert tools.get_fee_configuration("upi")["has_mdr"] is False
+
+
+def test_tds_applied_and_itemized(client):
+    """TDS (194-O) is on gross for every instrument, and settlements carry a NEFT batch id."""
+    pid = client.get("/api/samples").json()["payment_ids"][0]
+    t = client.get(f"/api/transaction/{pid}").json()
+    assert "tds" in t["breakdown"]
+    assert t["settlement"]["tds"] >= 0 and t["settlement"]["utr_batch_id"]
+    # at least one payment across the sample actually had TDS withheld
+    tds_seen = any(client.get(f"/api/transaction/{p}").json()["breakdown"].get("tds", 0) > 0
+                   for p in client.get("/api/samples").json()["payment_ids"])
+    assert tds_seen
+
+
 def test_memory_endpoint(client):
     m = client.get("/api/memory").json()
     assert m["known_pattern_hits"] > 0

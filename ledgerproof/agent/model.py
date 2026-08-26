@@ -31,6 +31,9 @@ class AgentFinding:
     evidence: list[str] = field(default_factory=list)
     narrative: str = ""
     break_type: str = "bank_settlement_match"  # the governor gates auto-resolve by this category
+    # optional: the agent's attribution of the residual gap to a specific fee. The deterministic
+    # verifier re-derives it from policy; a claim policy contradicts (e.g. MDR on UPI) is rejected.
+    fee_claim: Optional[dict] = None  # {"method", "component" (mdr|gst|tds|reserve), "gross", "amount"}
 
     def as_record(self) -> dict:
         return {
@@ -41,6 +44,7 @@ class AgentFinding:
             "match_basis": self.match_basis,
             "evidence": self.evidence,
             "narrative": self.narrative,
+            "fee_claim": self.fee_claim,
             "verification": None,  # filled by the deterministic verifier (Item #4)
         }
 

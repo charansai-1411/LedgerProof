@@ -77,7 +77,8 @@ def test_matched_records_reconcile_to_the_paise(graded):
     result, _ = graded
     for m in result.matched:
         ev = m.evidence
-        recomputed = m.gross_amount - ev["mdr_fee"] - ev["gst_on_mdr"] - ev["refund_deduction"] - ev["reserve"]
+        recomputed = (m.gross_amount - ev["mdr_fee"] - ev["gst_on_mdr"] - ev["refund_deduction"]
+                      - ev["reserve"] - ev["tds"])
         assert recomputed == m.net_amount, f"{m.payment_id} does not balance"
 
 

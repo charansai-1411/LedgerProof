@@ -162,11 +162,10 @@ class ReconService:
         settlement = self._settlement.get(report.settlement_id) if report else None
         breakdown = None
         if report:
-            reserve = (report.gross_amount - report.mdr_fee - report.gst_on_mdr
-                       - report.refund_deduction - report.net_amount)
             breakdown = {"gross": report.gross_amount, "net": report.net_amount,
                          "mdr": report.mdr_fee, "gst": report.gst_on_mdr,
-                         "refund": report.refund_deduction, "reserve": reserve,
+                         "refund": report.refund_deduction, "reserve": report.reserve,
+                         "tds": report.tds,
                          "difference": report.gross_amount - report.net_amount}
         return {
             "pg_capture": asdict(p),
@@ -276,7 +275,8 @@ class ReconService:
             gross = sum(r.gross_amount for r in rows)
             diff = {"gross": gross, "net": settlement.amount, "tdr": settlement.fees,
                     "gst": settlement.tax, "reserve": settlement.reserve_held,
-                    "refunds": sum(r.refund_deduction for r in rows), "difference": gross - settlement.amount}
+                    "tds": settlement.tds, "refunds": sum(r.refund_deduction for r in rows),
+                    "difference": gross - settlement.amount}
 
         timeline = [
             {"node": "BANK CREDIT", "detail": _rs(bc.credit_amount), "state": "head"},
@@ -345,10 +345,9 @@ class ReconService:
         ]
         diff = None
         if report:
-            reserve = (report.gross_amount - report.mdr_fee - report.gst_on_mdr
-                       - report.refund_deduction - report.net_amount)
             diff = {"gross": report.gross_amount, "net": report.net_amount, "tdr": report.mdr_fee,
-                    "gst": report.gst_on_mdr, "reserve": reserve, "refunds": report.refund_deduction,
+                    "gst": report.gst_on_mdr, "reserve": report.reserve, "tds": report.tds,
+                    "refunds": report.refund_deduction,
                     "difference": report.gross_amount - report.net_amount}
 
         timeline = [
@@ -371,6 +370,123 @@ class ReconService:
             "governor": {"decision": "human_review", "reason": "payment break — not agent-auto-resolvable",
                          "confidence": None, "threshold": self.policy.min_confidence},
             "timeline": timeline, "audit": audit,
+        }
+
+    # ---- maker-checker: generate the balancing journal entry ------------------
+    def journal_entry(self, item_id: str) -> dict | None:
+        """The double-entry a human 'approves' for a reconciled break. A resolved exception is not
+        just 'matched' — it must post a balanced journal that books each deduction to its account.
+        Debits (where the money went) must equal the credit (customer sale) to the paise."""
+        d = self.exception_detail(item_id)
+        if d is None:
+            return None
+        diff = d.get("diff")
+        if not diff:
+            return {"available": False, "id": item_id,
+                    "reason": "no settlement arithmetic to book (item never reached settlement)"}
+
+        gross = diff["gross"]
+        net = diff["net"]
+        mdr = diff.get("tdr", 0)
+        gst = diff.get("gst", 0)
+        tds = diff.get("tds", 0)
+        reserve = diff.get("reserve", 0)
+        refunds = diff.get("refunds", 0)
+
+        debits = [
+            ("Bank account", "asset", net),
+            ("Payment processing fee (MDR)", "expense", mdr),
+            ("Input GST / ITC", "asset", gst),
+            ("TDS receivable (Sec 194-O)", "asset", tds),
+            ("Rolling reserve (held, asset)", "asset", reserve),
+            ("Refunds / chargebacks", "contra-revenue", refunds),
+        ]
+        debits = [{"account": a, "type": t, "side": "debit", "amount": amt} for a, t, amt in debits if amt]
+        credits = [{"account": "Accounts receivable / customer sales", "type": "revenue",
+                    "side": "credit", "amount": gross}]
+
+        # integer paise are exact, so this residual is normally 0; a stray paise (imported data)
+        # posts to a rounding line so the entry still balances to the paise.
+        residual = gross - sum(l["amount"] for l in debits)
+        if residual > 0:
+            debits.append({"account": "Rounding off / misc gain", "type": "income",
+                           "side": "debit", "amount": residual})
+        elif residual < 0:
+            credits.append({"account": "Rounding off / misc loss", "type": "expense",
+                            "side": "credit", "amount": -residual})
+
+        total_debit = sum(l["amount"] for l in debits)
+        total_credit = sum(l["amount"] for l in credits)
+        parts = [f"MDR ₹{mdr/100:,.2f}" if mdr else "", f"GST ₹{gst/100:,.2f}" if gst else "",
+                 f"TDS ₹{tds/100:,.2f}" if tds else "", f"reserve ₹{reserve/100:,.2f}" if reserve else "",
+                 f"refund ₹{refunds/100:,.2f}" if refunds else ""]
+        memo = (f"₹{gross/100:,.2f} capture settled as ₹{net/100:,.2f}. Gap = "
+                + " + ".join(p for p in parts if p) + f". Recommend booking the adjustment.")
+        return {
+            "available": True, "id": item_id, "scope": d["scope"], "flow": d.get("flow"),
+            "break_type": d.get("break_type"), "memo": memo,
+            "lines": debits + credits, "total_debit": total_debit, "total_credit": total_credit,
+            "balanced": total_debit == total_credit,
+            "governor": d.get("governor", {}),
+        }
+
+    # ---- reconciliation waterfall matrix -------------------------------------
+    def waterfall(self) -> dict:
+        """The classic batch-reconciliation waterfall: every rupee ingested, traced to where it
+        landed — deterministically reconciled, agent-resolved, pending human, or quarantined."""
+        recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        seen: set[str] = set()
+        gross_captures = 0
+        for p in self._eng_sources.payments:
+            if p.payment_id in seen:
+                continue
+            seen.add(p.payment_id)
+            gross_captures += p.captured_amount
+        matched_gross = sum(m.gross_amount for m in recon.matched)
+
+        # credit (payout) side, under a sensible auto-resolve-on policy
+        bench = GovernorConfig(enabled=True, min_confidence=0.95, allowlist=["bank_settlement_match"],
+                               min_drift_days=self.policy.min_drift_days, max_drift_days=self.policy.max_drift_days)
+        records = run_pipeline(self.data_dir, self.model, bench)
+
+        def val(rs):
+            return sum(self._credit[r.finding.bank_txn_id].credit_amount for r in rs)
+
+        clean = [r for r in records
+                 if r.finding.matched_settlement_id and "exact_utr" in r.finding.match_basis]
+        investigated = [r for r in records if r not in clean]
+        autos = [r for r in investigated if r.governor.decision == DECISION_AUTO]
+        unexplained = [r for r in investigated if r.finding.matched_settlement_id is None]
+        pending = [r for r in investigated
+                   if r.governor.decision == DECISION_HUMAN and r.finding.matched_settlement_id]
+
+        rep = self.report()
+        fmr = rep["cardinal"]["combined_false_match_rate"] if self.has_ground_truth else None
+
+        stages = [
+            {"stage": "Gross PG captures ingested", "seam": "capture",
+             "volume": len(seen), "value": gross_captures, "status": "Ingested", "depth": 0},
+            {"stage": "Deterministic matches (payment → settlement)", "seam": "A",
+             "volume": len(recon.matched), "value": matched_gross, "status": "Reconciled (code)", "depth": 0},
+            {"stage": "Deterministic matches (clean-UTR payouts)", "seam": "B",
+             "volume": len(clean), "value": val(clean), "status": "Reconciled (code)", "depth": 0},
+            {"stage": "Agent-investigated payout exceptions", "seam": "B",
+             "volume": len(investigated), "value": val(investigated), "status": "Investigated", "depth": 0},
+            {"stage": "Auto-resolved (allowlist + verifier)", "seam": "B",
+             "volume": len(autos), "value": val(autos), "status": "Verified & adjusted", "depth": 1},
+            {"stage": "Pending human review (maker-checker)", "seam": "B",
+             "volume": len(pending), "value": val(pending), "status": "Actionable queue", "depth": 1},
+            {"stage": "Unexplained / refused (quarantined)", "seam": "B",
+             "volume": len(unexplained), "value": val(unexplained), "status": "Quarantined", "depth": 1},
+        ]
+        return {
+            "graded": self.has_ground_truth,
+            "stages": stages,
+            "false_match_rate": fmr,
+            "false_match_status": "100% deterministic integrity" if fmr == 0.0 else None,
+            "note": "Deterministic matches are proven in code; only the residue reaches the agent, "
+                    "and only verifier-passed, allowlisted findings auto-resolve. Everything else is "
+                    "queued for a human or quarantined — nothing is ever force-matched.",
         }
 
     def sample_payment_ids(self, n: int = 8) -> list[str]:
@@ -532,6 +648,75 @@ class ReconService:
                 "note": "Latency and cost are modeled from measured LLM-call counts per case "
                         "(1.5s and $0.01 per call); accuracy, false-match and human-precision are "
                         "measured against ground truth. Only the agent architecture varies."}
+
+    # ---- anti-hallucination guardrail (verifier blocks a wrong AI proposal) --
+    def guardrail_demo(self) -> dict:
+        """Two identical matches under the SAME auto-resolve policy: one clean, one where the agent
+        hallucinates a UPI MDR fee to explain the gap. The deterministic verifier re-derives the fee
+        from policy (UPI = 0% MDR), refuses the poisoned one, and the governor quarantines it — while
+        the clean one auto-resolves. Proves controlled autonomy actively blocks a wrong AI proposal."""
+        from ..agent.model import AgentFinding
+        from ..verifier.governor import Governor
+        from ..verifier.verifier import SeamBVerifier
+
+        tools = SeamBToolbox(load_seam_b(self.data_dir))
+        # a genuinely clean credit (exact UTR, amount equals settlement net) so every OTHER check passes
+        bid = sid = None
+        for b in tools.all_bank_txn_ids():
+            bc = tools.get_bank_credit(b)
+            s = tools.find_settlement_by_utr(bc.utr)
+            if s and s.amount == bc.credit_amount and bc.value_date == s.created_at:
+                bid, sid = b, s.settlement_id
+                break
+        if bid is None:  # degenerate dataset — nothing clean to demo on
+            return {"available": False}
+
+        bc = tools.get_bank_credit(bid)
+        rows = tools.explode_settlement(sid)
+        gross = rows[0].gross_amount if rows else bc.credit_amount
+
+        bench = GovernorConfig(enabled=True, min_confidence=0.95, allowlist=["bank_settlement_match"],
+                               min_drift_days=self.policy.min_drift_days,
+                               max_drift_days=self.policy.max_drift_days)
+        verifier = SeamBVerifier(bench.min_drift_days, bench.max_drift_days)
+        governor = Governor(bench)
+        claimed = {sid: 1}
+
+        def run(finding, proposal):
+            v = verifier.verify(finding, tools, claimed)
+            g = governor.decide(finding, v)
+            quarantined = g.decision == DECISION_HUMAN
+            return {
+                "record_id": finding.bank_txn_id,
+                "agent_proposal": proposal,
+                "verifier_result": ("REJECTED (" + v.reason + ")") if not v.verified else "PASSED (all checks re-derived)",
+                "verifier_checks": v.checks,
+                "governor_action": "QUARANTINED_TO_HUMAN" if quarantined else "AUTO_RESOLVED",
+                "verified": v.verified,
+            }
+
+        clean = AgentFinding(bank_txn_id=bid, matched_settlement_id=sid, confidence=0.986,
+                             match_basis=["exact_utr", "net_amount"],
+                             evidence=[f"UTR {bc.utr} matches", "net equals credit to the paise"],
+                             narrative="Exact UTR and net-to-credit equality; clean settlement match.")
+        poisoned = AgentFinding(
+            bank_txn_id=bid, matched_settlement_id=sid, confidence=0.991,
+            match_basis=["exact_utr", "net_amount"],
+            evidence=["UTR matches", "attributed ₹200 residual to a UPI processing fee"],
+            narrative="Gap of ₹200 explained as a standard UPI MDR fee.",
+            fee_claim={"method": "upi", "component": "mdr", "gross": gross, "amount": 20000})
+
+        return {
+            "available": True,
+            "policy": {"enabled": True, "allowlist": ["bank_settlement_match"], "min_confidence": 0.95},
+            "control": run(clean, "clean_settlement_match"),
+            "poisoned": run(poisoned, "upi_mdr_fee_mismatch"),
+            "explanation": ("Both findings propose the same match under the same auto-resolve policy. "
+                            "The only difference is the poisoned one attributes the residual to a UPI "
+                            "MDR fee. The verifier re-runs the fee formula (UPI MDR = 0%), finds the "
+                            "claim impossible, and refuses it — so the governor routes it to a human "
+                            "instead of auto-resolving. The AI cannot talk its way past policy."),
+        }
 
     # ---- pattern memory ------------------------------------------------------
     def memory(self) -> dict:

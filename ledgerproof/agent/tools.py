@@ -10,12 +10,14 @@ from collections import defaultdict
 from datetime import date, timedelta
 from typing import Optional
 
+from ..generator.config import FeeConfig
 from ..generator.models import BankCredit, Settlement, SettlementReportRow
 from .loader import SeamBSources
 
 
 class SeamBToolbox:
-    def __init__(self, sources: SeamBSources) -> None:
+    def __init__(self, sources: SeamBSources, fees: FeeConfig | None = None) -> None:
+        self._fees = fees or FeeConfig.load()
         self._settlements = {s.settlement_id: s for s in sources.settlements}
         self._credits = {c.bank_txn_id: c for c in sources.bank_credits}
         self._by_utr: dict[str, list[Settlement]] = defaultdict(list)
@@ -58,6 +60,15 @@ class SeamBToolbox:
     def explode_settlement(self, settlement_id: str) -> list[SettlementReportRow]:
         """Per-transaction rows for a settlement — evidence for a proposed match."""
         return list(self._rows_by_settlement.get(settlement_id, []))
+
+    def get_fee_configuration(self, method: str) -> dict:
+        """The fee policy for one instrument (MDR, GST rate, TDS, reserve).
+
+        Lets the agent reason about instrument-level rules — e.g. that UPI carries no MDR, so a
+        UPI gap can never be a TDR fee. The deterministic verifier re-derives against this same
+        policy, so any fee the agent attributes is independently checkable.
+        """
+        return self._fees.describe(method)
 
     def all_bank_txn_ids(self) -> list[str]:
         return list(self._credits.keys())

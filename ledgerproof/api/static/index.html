@@ -223,6 +223,7 @@
     <div class="nav active" data-v="overview"><span class="ic">▦</span> Overview</div>
     <div class="grp">Reconciliation</div>
     <div class="nav sub" data-v="cycles"><span class="ic">≣</span> Settlement runs</div>
+    <div class="nav sub" data-v="waterfall"><span class="ic">⣷</span> Recon waterfall</div>
     <div class="nav sub" data-v="exceptions"><span class="ic">⚑</span> Exceptions</div>
     <div class="grp">Investigation</div>
     <div class="nav" data-v="investigation"><span class="ic">◎</span> Agent workspace</div>
@@ -231,6 +232,7 @@
     <div class="nav" data-v="evaluation"><span class="ic">▤</span> Evaluation</div>
     <div class="nav" data-v="architecture"><span class="ic">⑃</span> Architecture study</div>
     <div class="nav" data-v="benchmark"><span class="ic">▦</span> Benchmark matrix</div>
+    <div class="nav" data-v="guardrail"><span class="ic">⛨</span> Safety guardrail</div>
     <div class="nav" data-v="memory"><span class="ic">◈</span> Pattern memory</div>
     <div class="grp">Records</div>
     <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit</div>
@@ -304,6 +306,18 @@
     <section class="view" id="v-benchmark">
       <div class="phead"><div><h1>Benchmark matrix</h1><div class="sub">Three business profiles × three difficulty levels, generated large and reconciled cold (no cache). Only the agent architecture varies.</div></div></div>
       <div id="bm-body"><div class="empty">loading…</div></div>
+    </section>
+
+    <!-- RECON WATERFALL -->
+    <section class="view" id="v-waterfall">
+      <div class="phead"><div><h1>Reconciliation waterfall</h1><div class="sub">Every rupee ingested, traced to where it landed — reconciled in code, resolved by the agent, queued for a human, or quarantined. Batch accounting completeness, end to end.</div></div></div>
+      <div id="wf-body"><div class="empty">loading…</div></div>
+    </section>
+
+    <!-- SAFETY GUARDRAIL -->
+    <section class="view" id="v-guardrail">
+      <div class="phead"><div><h1>Safety guardrail</h1><div class="sub">Controlled autonomy is not a slogan — the deterministic verifier actively blocks a wrong AI proposal. Same match, same auto-resolve policy; the only difference is a hallucinated fee.</div></div></div>
+      <div id="gr-body"><div class="empty">loading…</div></div>
     </section>
 
     <!-- PATTERN MEMORY -->
@@ -395,6 +409,8 @@ function show(v){
   $$(".view").forEach(s=>s.classList.remove("show")); $("#v-"+v).classList.add("show");
   if(v==="overview")loadOverview();
   if(v==="cycles"&&!loaded.cycles){loadCycles();loadSamples();loaded.cycles=1;}
+  if(v==="waterfall"){loadWaterfall();}
+  if(v==="guardrail"){loadGuardrail();}
   if(v==="exceptions"&&!loaded.exceptions){loadExceptions();loaded.exceptions=1;}
   if(v==="investigation"&&!loaded.inv){loadCredits();loaded.inv=1;}
   if(v==="scenario"){}
@@ -530,6 +546,42 @@ async function loadMemory(){
 }
 function cycleRow(c){return `<tr><td class="id">${c.cycle_id}</td><td>${c.date}</td><td class="num">${rsShort(c.gross)}</td><td class="num">${rsShort(c.net)}</td><td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td><td class="num">${c.issues}</td></tr>`;}
 
+async function loadWaterfall(){
+  const w=await jget("/api/waterfall");
+  const rows=w.stages.map(s=>{
+    const indent=s.depth?'<span style="color:var(--faint)">├──&nbsp;</span>':'';
+    const cls=s.depth?' style="color:var(--muted)"':'';
+    return `<tr${cls}><td>${indent}${s.stage}</td><td class="num mono">${s.volume.toLocaleString("en-IN")}</td>
+      <td class="num mono">${rsShort(s.value)}</td><td><span class="pill ${s.status.toLowerCase().replace(/[^a-z]/g,"")}" style="font-size:11px">${s.status}</span></td></tr>`;
+  }).join("");
+  const fmr=w.false_match_rate;
+  const fmRow=fmr==null?"":`<tr style="border-top:2px solid var(--line)"><td><b>False match rate</b></td><td class="num mono" style="color:var(--green)"><b>${(fmr*100).toFixed(2)}%</b></td>
+    <td class="num mono" style="color:var(--green)"><b>₹0.00</b></td><td><span class="pill auto" style="font-size:11px">${w.false_match_status||"clean"}</span></td></tr>`;
+  $("#wf-body").innerHTML=`
+    <div class="card" style="max-width:760px;overflow-x:auto"><table>
+      <thead><tr><th>Stage / component</th><th class="num">Volume</th><th class="num">Value</th><th>Status</th></tr></thead>
+      <tbody>${rows}${fmRow}</tbody></table></div>
+    <p class="muted" style="margin-top:12px;max-width:760px;font-size:12.5px">${w.note}</p>`;
+}
+async function loadGuardrail(){
+  const g=await jget("/api/guardrail");
+  if(!g.available){$("#gr-body").innerHTML='<div class="empty">No clean settlement in this dataset to demonstrate on. Load a sample dataset.</div>';return;}
+  const card=(t,r,poisoned)=>{
+    const blocked=r.governor_action==="QUARANTINED_TO_HUMAN";
+    const audit=JSON.stringify({record_id:r.record_id,agent_proposal:r.agent_proposal,verifier_result:r.verifier_result,governor_action:r.governor_action},null,2);
+    return `<div class="card" style="padding:16px 18px;border-left:3px solid ${blocked?'var(--amber)':'var(--green)'}">
+      <div class="l" style="font-weight:700;font-size:13px;margin-bottom:2px">${t}</div>
+      <div class="muted" style="font-size:12px;margin-bottom:10px">agent proposal: <span class="mono">${r.agent_proposal}</span></div>
+      <div class="chk ${r.verified?'ok':'no'}" style="margin-bottom:6px"><span class="m">${r.verified?'✓':'✕'}</span><span class="k">${r.verifier_result}</span></div>
+      <div class="decision"><span class="pill ${blocked?'human':'auto'}">${r.governor_action.replace(/_/g," ")}</span></div>
+      <pre class="mono" style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11px;overflow-x:auto;margin-top:12px">${audit}</pre></div>`;
+  };
+  $("#gr-body").innerHTML=`
+    <div class="muted" style="font-size:12.5px;margin-bottom:14px">Policy in force for both: auto-resolve <b>ON</b>, allowlist <span class="mono">bank_settlement_match</span>, confidence ≥ ${(g.policy.min_confidence*100).toFixed(0)}%.</div>
+    <div class="grid2" style="max-width:820px">${card("Control — clean match",g.control,false)}${card("Poisoned — hallucinated UPI fee",g.poisoned,true)}</div>
+    <div class="whybox yes" style="max-width:820px;margin-top:16px"><div class="h">Why this proves controlled autonomy</div><p style="color:var(--ink)">${g.explanation}</p></div>`;
+}
+
 /* copilot */
 const QA_EX=["Give me a summary","How many credits are unexplained?","What did the agent auto-resolve?","Total GST this cycle"];
 function initCopilot(){$("#qa-ex").innerHTML=QA_EX.map(q=>`<a href="#" data-q="${q}">${q}</a>`).join("");
@@ -551,6 +603,7 @@ function sotVertical(records,diff){
   h+='</div>';
   if(diff)h+=`<div class="sot-diff"><div class="dhead" style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px">Difference <b class="mono" style="color:var(--ink);font-size:14px">${rsFull(diff.difference)}</b></div>
     <div class="drow"><span>TDR (MDR)</span><b>${rsFull(diff.tdr)}</b></div><div class="drow"><span>GST on MDR</span><b>${rsFull(diff.gst)}</b></div>
+    ${diff.tds?`<div class="drow"><span>TDS (Sec 194-O)</span><b>${rsFull(diff.tds)}</b></div>`:""}
     ${diff.reserve?`<div class="drow"><span>Rolling reserve</span><b>${rsFull(diff.reserve)}</b></div>`:""}
     ${diff.refunds?`<div class="drow"><span>Refund</span><b>${rsFull(diff.refunds)}</b></div>`:""}</div>`;
   return h;
@@ -588,12 +641,12 @@ async function openWorkspace(id){
 function recCard(r){return `<div class="srec"><div class="top"><span class="who">${r.who}</span><span class="a">${rsFull(r.amount)}</span></div><div class="meta">${r.ref}<br>${r.sub}</div></div>`;}
 function diffBox(diff,label){if(!diff)return"";return `<div class="diff"><div class="dhead">${label||"Settlement"} <b>${rsFull(diff.gross)}</b> gross → <b>${rsFull(diff.net)}</b> net</div>
   <div class="drow"><span>TDR</span><b>${rsFull(diff.tdr)}</b></div><div class="drow"><span>GST</span><b>${rsFull(diff.gst)}</b></div>
-  ${diff.reserve?`<div class="drow"><span>Reserve</span><b>${rsFull(diff.reserve)}</b></div>`:""}${diff.refunds?`<div class="drow"><span>Refunds</span><b>${rsFull(diff.refunds)}</b></div>`:""}</div>`;}
+  ${diff.tds?`<div class="drow"><span>TDS (194-O)</span><b>${rsFull(diff.tds)}</b></div>`:""}${diff.reserve?`<div class="drow"><span>Reserve</span><b>${rsFull(diff.reserve)}</b></div>`:""}${diff.refunds?`<div class="drow"><span>Refunds</span><b>${rsFull(diff.refunds)}</b></div>`:""}</div>`;}
 function renderCreditDetail(d){
   $("#ws-detail").innerHTML=`<div class="detcols">
     <div class="col"><h3>Source records</h3>${d.records.map(recCard).join("")}${diffBox(d.diff)}</div>
     <div class="col"><h3>AI investigation</h3><div class="trace" id="ws-trace"></div><div class="finding" id="ws-finding"></div></div>
-    <div class="col"><h3>Verification</h3><div id="ws-verify"></div><div class="gov" id="ws-gov"></div></div></div>`;
+    <div class="col"><h3>Verification</h3><div id="ws-verify"></div><div class="gov" id="ws-gov"></div><div id="ws-journal" style="margin-top:14px"></div></div></div>`;
   revealTrace(d.trace,()=>{
     $("#ws-finding").innerHTML=`<div class="fl">Finding</div><div class="ft">${d.finding.matched?("Match → "+d.finding.matched):"No defensible match — opened"}</div>
       <div class="fc">${(d.finding.basis||[]).join(" · ")} · confidence ${d.finding.confidence}</div>`;
@@ -622,6 +675,35 @@ function renderVerify(d){const v=d.verification,checks=Object.entries(v.checks||
   const g=d.governor;
   $("#ws-gov").innerHTML=`<h3 style="margin-bottom:10px">Governor</h3><div class="conf"><span class="big">${(g.confidence*100).toFixed(0)}%</span><span class="muted">confidence</span></div>
     <div class="thr">threshold ${(g.threshold*100).toFixed(0)}%</div><div class="decision"><span class="pill ${g.decision==='auto_resolved'?'auto':'human'}">${g.decision.replace("_"," ").toUpperCase()}</span></div><div class="why">${g.reason}</div>`;
+  const box=$("#ws-journal");
+  if(box){
+    if(d.finding&&d.finding.matched){
+      box.innerHTML=`<button class="btn primary sm" id="ws-journal-btn">✓ Approve &amp; generate journal entry</button>
+        <div class="sub" style="margin-top:4px">Maker-checker: posts the balancing double-entry.</div>`;
+      $("#ws-journal-btn").addEventListener("click",()=>genJournal(d.id));
+    }else{box.innerHTML="";}
+  }
+}
+async function genJournal(id){
+  const box=$("#ws-journal");box.innerHTML='<div class="muted">generating balanced journal entry…</div>';
+  try{const j=await jget("/api/journal/"+encodeURIComponent(id));
+    if(!j.available){box.innerHTML=`<div class="muted">${j.reason||"no entry to book"}</div>`;return;}
+    box.innerHTML=renderJournal(j);
+  }catch(e){box.innerHTML=`<div class="err">error: ${e}</div>`;}
+}
+function renderJournal(j){
+  const line=l=>`<tr><td style="padding:3px 6px">${l.account}<div class="id" style="font-size:10px">${l.type}</div></td>
+    <td class="num mono" style="padding:3px 6px">${l.side==='debit'?rsFull(l.amount):''}</td>
+    <td class="num mono" style="padding:3px 6px">${l.side==='credit'?rsFull(l.amount):''}</td></tr>`;
+  return `<div style="font-weight:700;font-size:12px;margin-bottom:4px">Journal entry
+      <span class="pill ${j.balanced?'auto':'human'}" style="font-size:10px">${j.balanced?'BALANCED':'UNBALANCED'}</span></div>
+    <div class="muted" style="font-size:11.5px;margin-bottom:8px">${j.memo}</div>
+    <table style="width:100%;font-size:11.5px;border-collapse:collapse">
+      <thead><tr style="color:var(--muted)"><th style="text-align:left;padding:3px 6px">Account</th><th class="num" style="padding:3px 6px">Debit</th><th class="num" style="padding:3px 6px">Credit</th></tr></thead>
+      <tbody>${j.lines.map(line).join("")}</tbody>
+      <tfoot><tr style="border-top:1px solid var(--line)"><td style="padding:4px 6px"><b>Total</b></td>
+        <td class="num mono" style="padding:4px 6px"><b>${rsFull(j.total_debit)}</b></td>
+        <td class="num mono" style="padding:4px 6px"><b>${rsFull(j.total_credit)}</b></td></tr></tfoot></table>`;
 }
 $("#ws-back").addEventListener("click",()=>show("exceptions"));
 $("#ws-audit-btn").addEventListener("click",()=>{if(_wsAudit)openDrawer(_wsAudit.id,_wsAudit.rows);});

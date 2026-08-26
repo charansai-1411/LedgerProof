@@ -37,6 +37,8 @@ class Settlement:
     reserve_release: Optional[int]  # nullable — hold-only hook (always None in v1)
     status: str
     created_at: str  # ISO date
+    tds: int = 0  # total Sec 194-O TDS withheld, paise
+    utr_batch_id: str = ""  # NEFT batch this payout rode in (settlements paid same cycle share one)
 
 
 @dataclass
@@ -51,6 +53,8 @@ class SettlementReportRow:
     gst_on_mdr: int  # paise
     refund_deduction: int  # paise
     net_amount: int  # paise
+    tds: int = 0  # Sec 194-O TDS on gross, paise
+    reserve: int = 0  # rolling reserve held, paise (0 for instruments outside the reserve policy)
 
 
 @dataclass

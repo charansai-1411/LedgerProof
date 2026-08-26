@@ -91,11 +91,19 @@ class SeamAEngine:
         if report.gst_on_mdr != exp.gst_on_mdr:
             return self._exc(result, p, report, CAT_FEE_CONFIG_MISMATCH, "GST-on-MDR != policy",
                              expected=exp.gst_on_mdr, actual=report.gst_on_mdr)
+        if report.tds != exp.tds:
+            return self._exc(result, p, report, CAT_FEE_CONFIG_MISMATCH, "TDS (194-O) != policy",
+                             expected=exp.tds, actual=report.tds)
+        if report.reserve != exp.reserve:
+            return self._exc(result, p, report, CAT_FEE_CONFIG_MISMATCH, "rolling reserve != policy",
+                             expected=exp.reserve, actual=report.reserve)
 
-        # 3. report internal consistency: net == gross - mdr - gst - refund - reserve
-        expected_net = p.captured_amount - report.mdr_fee - report.gst_on_mdr - refund - exp.reserve
+        # 3. report internal consistency: net == gross - mdr - gst - refund - reserve - tds
+        expected_net = (p.captured_amount - report.mdr_fee - report.gst_on_mdr - refund
+                        - exp.reserve - exp.tds)
         if expected_net != report.net_amount:
-            return self._exc(result, p, report, CAT_REPORT_INCONSISTENT, "net != gross-mdr-gst-refund-reserve",
+            return self._exc(result, p, report, CAT_REPORT_INCONSISTENT,
+                             "net != gross-mdr-gst-refund-reserve-tds",
                              expected=expected_net, actual=report.net_amount)
 
         # 4. ledger must have booked the right principal (gross-of-refund)
@@ -120,6 +128,7 @@ class SeamAEngine:
                     "mdr_fee": report.mdr_fee,
                     "gst_on_mdr": report.gst_on_mdr,
                     "reserve": exp.reserve,
+                    "tds": exp.tds,
                     "refund_deduction": refund,
                     "booked_amount": ledger.booked_amount,
                 },

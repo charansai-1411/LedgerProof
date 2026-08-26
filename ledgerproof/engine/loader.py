@@ -24,6 +24,11 @@ def _int(v) -> int | None:
     return None if v is None else int(v)
 
 
+def _col(row, name: str, default=0):
+    """Read a column that may be absent in a dataset generated before it was added."""
+    return int(row[name]) if name in row.keys() and row[name] is not None else default
+
+
 def load_sources(data_dir: str | Path) -> Sources:
     db = Path(data_dir) / "ledgerproof.sqlite"
     if not db.exists():
@@ -54,6 +59,8 @@ def load_sources(data_dir: str | Path) -> Sources:
                 gst_on_mdr=int(r["gst_on_mdr"]),
                 refund_deduction=int(r["refund_deduction"]),
                 net_amount=int(r["net_amount"]),
+                tds=_col(r, "tds"),
+                reserve=_col(r, "reserve"),
             )
             for r in conn.execute("SELECT * FROM settlement_report")
         ]

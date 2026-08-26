@@ -76,6 +76,7 @@ The first four are rule-resolvable (engine); `UNEXPLAINED` is the honest excepti
 | `TAX_DEDUCTION` (GST-on-MDR) | A | **Engine** | One tax rule against a known fee |
 | `ROUNDING` | A | **Engine** | Tolerance band, deterministic |
 | Rolling reserve (flat %) | A | **Engine** | One reserve rule per policy |
+| `TDS_194O` (0.1% on gross) | A | **Engine** | Marketplace TDS on order value — one rate against a per-txn row |
 | Duplicate | any | **Engine** | Dedupe on keys |
 | Clean timing / in-transit | A | **Engine** | Deterministic once the later settlement arrives |
 | **Bank-credit ↔ settlement match** ⭐ | B | **Agent** | The lump credit must be matched to the right batch under a noisy/insufficient UTR, colliding same-day settlements, and a T+2 date drift — search + hypothesis |
@@ -109,6 +110,45 @@ Data is **synthetic and generator-produced**, modeled on Razorpay's real settlem
 3. **Internal ledger** — the merchant's own gross bookings: `ledger_entry_id, order_id, payment_id, booked_amount, booked_at` (typically booked gross, no settlement IDs).
 
 The **ground-truth key** records, for every bank credit, exactly which `settlement_id` it corresponds to and the full per-transaction decomposition — so Seam-B matches and variance labels are objectively gradable.
+
+---
+
+## 5b. Domain-depth additions (v1.1 — shipped)
+
+Four additions deepen the domain authenticity and the safety story. All are implemented, tested, and surfaced in the dashboard.
+
+**1. The full gross-to-net deduction waterfall, with Sec 194-O TDS.** Every settlement's net is derived, per transaction, as:
+
+```
+net = gross − MDR − GST(18% on MDR) − refund − rolling reserve − TDS(0.1% on gross, Sec 194-O)
+```
+
+TDS under **Section 194-O** (e-commerce marketplace, 0.1% of gross order value) is now a first-class deduction line, **itemized** on each settlement-report row (`tds`) and settlement header, alongside an explicit `reserve` column and a `utr_batch_id` (the NEFT batch a payout rode in) — so `payment_method` and `utr_batch_id` justify why the agent must inspect **instrument-level fee rules** via `get_fee_configuration`. Both the generator and the engine read the same `configs/fees.yaml` and compute TDS identically. The **UPI-zero-fee trap holds** — UPI still carries 0% MDR — but TDS *does* apply to UPI (it is a tax on order value, not a payment fee), so it is the one deduction UPI still shows.
+
+**2. Maker-checker: one-click balancing journal entry.** A resolved break is not merely "matched" — a human approves a formal double-entry. **Approve & generate journal entry** in the workspace posts the balancing lines to the paise, e.g. *"₹4,134,846.00 capture settled as ₹3,838,855.21. Gap = MDR + GST + TDS + reserve + refund. Recommend booking the adjustment"*:
+
+| Debit | | Credit | |
+|---|--:|---|--:|
+| Bank account | net | Accounts receivable / customer sales | gross |
+| Payment processing fee (MDR) | mdr | | |
+| Input GST / ITC | gst | | |
+| TDS receivable (Sec 194-O) | tds | | |
+| Rolling reserve (held, asset) | reserve | | |
+| Refunds / chargebacks | refund | | |
+
+Because `net = gross − Σ deductions`, debits always equal the single credit to the paise — proving end-to-end accounting literacy, not just labeling items "unmatched." (`GET /api/journal/{id}`.)
+
+**3. Reconciliation waterfall matrix (dashboard).** A classic batch-completeness table: gross captures ingested → deterministic matches (Seam-A + clean-UTR payouts) → agent-investigated exceptions → {auto-resolved (allowlist + verifier), pending human review (maker-checker), unexplained/quarantined} → **false-match rate = 0 (100% deterministic integrity)**. Every rupee ingested is traced to where it landed. (`GET /api/waterfall`.)
+
+**4. Anti-hallucination re-derivation (verifier guardrail).** The verifier now re-derives any **fee the agent attributes** a gap to. Seed the agent claiming a ₹200 mismatch is a "standard UPI MDR fee" (policy: UPI MDR = 0%); the verifier re-runs the fee formula, detects *"rule constraint violation: policy MDR for UPI is ₹0.00, agent claimed ₹200.00,"* refuses the finding, and the governor **quarantines it to human** — while an identical clean match under the same auto-resolve policy passes. The audit record:
+
+```json
+{ "record_id": "bank_…", "agent_proposal": "upi_mdr_fee_mismatch",
+  "verifier_result": "REJECTED (rule constraint violation: UPI has 0% MDR)",
+  "governor_action": "QUARANTINED_TO_HUMAN" }
+```
+
+This is `search ≠ check` turned on the agent's own reasoning: the *explanation*, not just the match, must survive deterministic re-derivation. It proves controlled autonomy actively **blocks** a wrong AI proposal. (`GET /api/guardrail`; **Safety guardrail** page.)
 
 ---
 

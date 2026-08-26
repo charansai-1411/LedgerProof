@@ -12,13 +12,37 @@ from datetime import date
 
 from ..agent.model import AgentFinding
 from ..agent.tools import SeamBToolbox
+from ..generator.config import FeeConfig
+from ..generator.fees import compute_fee_line
 from .models import VerificationResult
 
 
 class SeamBVerifier:
-    def __init__(self, min_drift_days: int = 0, max_drift_days: int = 4) -> None:
+    def __init__(self, min_drift_days: int = 0, max_drift_days: int = 4,
+                 fees: FeeConfig | None = None) -> None:
         self.min_drift_days = min_drift_days
         self.max_drift_days = max_drift_days
+        self.fees = fees or FeeConfig.load()
+
+    def _fee_claim_holds(self, claim: dict) -> tuple[bool, str]:
+        """Re-derive a fee the agent attributed a gap to, from policy. Anti-hallucination guard:
+        if the agent claims (say) an MDR fee on UPI — where policy MDR is 0 — the claim is provably
+        false and the finding is refused, never auto-resolved. This is 'search != check' turned on
+        the agent's own reasoning: the explanation, not just the match, must survive re-derivation."""
+        method = claim.get("method", "")
+        component = claim.get("component", "mdr")
+        gross = int(claim.get("gross", 0))
+        claimed = int(claim.get("amount", 0))
+        if method not in self.fees.methods:
+            return False, f"unknown instrument '{method}'"
+        fl = compute_fee_line(method, gross, self.fees)
+        expected = {"mdr": fl.mdr_fee, "gst": fl.gst_on_mdr, "tds": fl.tds, "reserve": fl.reserve}.get(component)
+        if expected is None:
+            return False, f"unknown fee component '{component}'"
+        if claimed == expected:
+            return True, f"{component} of ₹{claimed/100:,.2f} for {method} matches policy"
+        return False, (f"rule constraint violation: policy {component} for {method} is "
+                       f"₹{expected/100:,.2f}, agent claimed ₹{claimed/100:,.2f}")
 
     def verify(
         self, finding: AgentFinding, tools: SeamBToolbox, claimed_counts: dict[str, int]
@@ -31,6 +55,13 @@ class SeamBVerifier:
             return VerificationResult(False, "agent opened the credit; no match to verify", {})
 
         checks: dict[str, bool] = {}
+        # If the agent attributed the residual to a fee, that attribution must survive re-derivation
+        # from policy before anything else — a hallucinated fee cannot be allowed to justify a match.
+        if finding.fee_claim:
+            ok, why = self._fee_claim_holds(finding.fee_claim)
+            checks["fee_claim_matches_policy"] = ok
+            if not ok:
+                return VerificationResult(False, why, checks)
         s = tools.get_settlement(sid)
         checks["settlement_exists"] = s is not None
         if s is None:

@@ -145,6 +145,7 @@ class Generator:
 
         for settle_day in sorted(by_settle_day):
             group = by_settle_day[settle_day]
+            batch_id = self._rid("batch_", 8)  # one NEFT batch per settlement cycle (day)
             # split a day's payments into two same-day settlements to create real collisions
             if len(group) >= 2 and self.rng.random() < collision_rate:
                 mid = len(group) // 2
@@ -152,7 +153,8 @@ class Generator:
             else:
                 batches = [group]
             for batch in batches:
-                settlements.append(self._build_settlement(batch, settle_day, report_rows, compound_ids))
+                settlements.append(
+                    self._build_settlement(batch, settle_day, report_rows, compound_ids, batch_id))
 
         # --- bank credits (one clean credit per settlement) ---
         bank_credits: list[BankCredit] = []
@@ -236,13 +238,14 @@ class Generator:
         settle_day: int,
         report_rows: list[SettlementReportRow],
         compound_ids: set[str],
+        batch_id: str = "",
     ) -> Settlement:
         setl_id = self._rid("setl_", 8)
-        total_net = total_fees = total_tax = total_reserve = total_gross = total_refund = 0
+        total_net = total_fees = total_tax = total_reserve = total_gross = total_refund = total_tds = 0
         for p in batch:
             fl = compute_fee_line(p.method, p.captured_amount, self.cfg.fees)
             refund_ded = p.refund_amount or 0
-            net = p.captured_amount - fl.mdr_fee - fl.gst_on_mdr - refund_ded - fl.reserve
+            net = (p.captured_amount - fl.mdr_fee - fl.gst_on_mdr - refund_ded - fl.reserve - fl.tds)
             report_rows.append(
                 SettlementReportRow(
                     settlement_id=setl_id,
@@ -253,12 +256,15 @@ class Generator:
                     gst_on_mdr=fl.gst_on_mdr,
                     refund_deduction=refund_ded,
                     net_amount=net,
+                    tds=fl.tds,
+                    reserve=fl.reserve,
                 )
             )
             total_net += net
             total_fees += fl.mdr_fee
             total_tax += fl.gst_on_mdr
             total_reserve += fl.reserve
+            total_tds += fl.tds
             total_gross += p.captured_amount
             total_refund += refund_ded
             # engine-resolvable variance labels (informational)
@@ -275,6 +281,8 @@ class Generator:
             reserve_release=None,  # hold-only hook
             status="processed",
             created_at=self._day(settle_day),
+            tds=total_tds,
+            utr_batch_id=batch_id,
         )
         self._gt_settlements[setl_id] = {
             "expected_net": total_net,
@@ -283,6 +291,7 @@ class Generator:
             "gst": total_tax,
             "refunds": total_refund,
             "reserve": total_reserve,
+            "tds": total_tds,
         }
         return s
 
@@ -392,11 +401,17 @@ class Generator:
         for pid, label in ds.ground_truth["variance_labels"].items():
             if label in ("FEE_DEDUCTION", "TAX_DEDUCTION") and method_by_id.get(pid) == "upi":
                 raise AssertionError(f"UPI-zero-fee trap: UPI payment {pid} labeled {label}")
-        # 1. money is integer paise everywhere
+        # 1. money is integer paise everywhere; and each row nets exactly to its deduction waterfall
         for r in ds.report_rows:
-            for v in (r.gross_amount, r.mdr_fee, r.gst_on_mdr, r.refund_deduction, r.net_amount):
+            for v in (r.gross_amount, r.mdr_fee, r.gst_on_mdr, r.refund_deduction,
+                      r.tds, r.reserve, r.net_amount):
                 if not isinstance(v, int):
                     raise AssertionError(f"non-int money value in report row {r.settlement_id}")
+            waterfall = (r.gross_amount - r.mdr_fee - r.gst_on_mdr - r.refund_deduction
+                         - r.reserve - r.tds)
+            if waterfall != r.net_amount:
+                raise AssertionError(
+                    f"row {r.payment_id}: gross-mdr-gst-refund-reserve-tds {waterfall} != net {r.net_amount}")
 
 
 def _copy_payment(p: Payment) -> Payment:
