@@ -96,9 +96,12 @@ class ReconService:
 
     def exceptions(self) -> list[dict]:
         """Unified exception queue in domain language: payment breaks (Payment → Ledger) and bank-
-        credit breaks (Bank Credit → Settlement), each with a semantic type. Clean matches are not
-        exceptions and are omitted."""
-        from ..engine.models import CAT_LEDGER_BOOKING_MISMATCH, CAT_NOT_SETTLED
+        credit breaks (Bank Credit → Settlement), each carrying the full reason-code taxonomy
+        (§8): match_status, resolution_type, exception_reason, delta and a suggested action. Clean
+        matches are not exceptions and are omitted."""
+        from .. import engine as _eng  # noqa: F401  (keep package import cost out of hot paths)
+        from ..engine import reasons as R
+        from ..engine.models import CAT_DUPLICATE, CAT_LEDGER_BOOKING_MISMATCH, CAT_NOT_SETTLED
 
         out: list[dict] = []
         recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
@@ -107,33 +110,56 @@ class ReconService:
         for e in recon.exceptions:
             kind, sev = pay_kind.get(e.category, (e.category.replace("_", " ").title(), "MED"))
             p = self._pay.get(e.payment_id)
+            base = p.captured_amount if p else 0
+            delta = (e.expected - e.actual) if (e.expected is not None and e.actual is not None) else None
+            reason = R.CAT_TO_REASON.get(e.category, R.UNEXPLAINED)
             out.append({"scope": "payment", "id": e.payment_id, "flow": "Payment → Ledger",
-                        "kind": kind, "severity": sev,
-                        "amount": p.captured_amount if p else None, "confidence": None,
-                        "status": "Flagged", "decision": "human_review"})
+                        "kind": kind, "severity": sev, "amount": base or None, "confidence": None,
+                        "status": "Flagged", "decision": "human_review",
+                        "match_status": R.HUMAN_REVIEW, "resolution_type": None,
+                        "exception_reason": reason,
+                        "delta_paise": delta,
+                        "delta_percent": R.delta_percent(delta, base) if delta is not None else None,
+                        "nearest_candidate_id": e.settlement_id,
+                        "suggested_action": R.suggest_action(reason)})
         for pid in recon.duplicates:
             p = self._pay.get(pid)
             out.append({"scope": "payment", "id": pid, "flow": "Payment → Ledger",
                         "kind": "Duplicate record", "severity": "LOW",
                         "amount": p.captured_amount if p else None, "confidence": None,
-                        "status": "Flagged", "decision": "human_review"})
+                        "status": "Flagged", "decision": "human_review",
+                        "match_status": R.HUMAN_REVIEW, "resolution_type": None,
+                        "exception_reason": R.DUPLICATE_REFERENCE, "delta_paise": 0,
+                        "delta_percent": 0.0, "nearest_candidate_id": None,
+                        "suggested_action": R.suggest_action(R.DUPLICATE_REFERENCE)})
 
         for r in run_pipeline(self.data_dir, self.model, self.policy):
             f = r.finding
             bid = f.bank_txn_id
             if f.matched_settlement_id and "exact_utr" in f.match_basis:
                 continue  # clean UTR match — reconciles trivially, not an exception
-            if f.matched_settlement_id is None:
-                kind, sev = "Unexplained credit", "HIGH"
-            elif not (self._credit[bid].utr or ""):
-                kind, sev = "Missing UTR", "MED"
+            bc = self._credit[bid]
+            sid = f.matched_settlement_id
+            if sid is None:
+                kind, sev, reason, rtype = "Unexplained credit", "HIGH", R.NO_CANDIDATE, None
+                delta = None
+            elif not (bc.utr or ""):
+                kind, sev, reason, rtype = "Missing UTR", "MED", R.MISSING_SOURCE, R.AGENT_VERIFIED
+                delta = bc.credit_amount - (self._settlement[sid].amount if sid in self._settlement else bc.credit_amount)
             else:
-                kind, sev = "Ambiguous settlement", "MED"
+                kind, sev, reason, rtype = "Ambiguous settlement", "MED", R.AMBIGUOUS_CANDIDATE, R.AGENT_VERIFIED
+                delta = bc.credit_amount - (self._settlement[sid].amount if sid in self._settlement else bc.credit_amount)
+            auto = r.governor.decision == DECISION_AUTO
             out.append({"scope": "credit", "id": bid, "flow": "Bank Credit → Settlement",
-                        "kind": kind, "severity": sev, "amount": self._credit[bid].credit_amount,
-                        "confidence": round(f.confidence, 2) if f.matched_settlement_id else None,
-                        "status": "Auto-resolved" if r.governor.decision == DECISION_AUTO else "Review",
-                        "decision": r.governor.decision})
+                        "kind": kind, "severity": sev, "amount": bc.credit_amount,
+                        "confidence": round(f.confidence, 2) if sid else None,
+                        "status": "Auto-resolved" if auto else "Review", "decision": r.governor.decision,
+                        "match_status": R.MATCHED if auto else (R.HUMAN_REVIEW if sid else R.EXCEPTION),
+                        "resolution_type": rtype, "exception_reason": None if auto else reason,
+                        "delta_paise": delta,
+                        "delta_percent": R.delta_percent(delta, bc.credit_amount) if delta is not None else None,
+                        "nearest_candidate_id": sid,
+                        "suggested_action": R.suggest_action(reason) if not auto else "Auto-resolved — verifier passed and on allowlist."})
 
         order = {"HIGH": 0, "MED": 1, "LOW": 2}
         out.sort(key=lambda r: (order[r["severity"]], -(r["amount"] or 0)))
@@ -144,6 +170,51 @@ class ReconService:
             "enabled": self.policy.enabled,
             "min_confidence": self.policy.min_confidence,
             "allowlist": list(self.policy.allowlist),
+            "version": self.policy.version,
+        }
+
+    def what_if(self, enabled: bool, min_confidence: float, allowlist: list[str]) -> dict:
+        """Policy simulator (§31): run the current policy and a hypothetical one on the SAME data and
+        show the before/after auto-resolve / human-review split — AND, on graded data, the safety cost
+        (wrong auto-resolutions). Loosening a threshold is never presented as automatically better."""
+        from ..engine.grader import load_ground_truth
+
+        gt = load_ground_truth(self.data_dir)["bank_credits"] if self.has_ground_truth else None
+
+        def run(cfg: GovernorConfig) -> dict:
+            recs = run_pipeline(self.data_dir, self.model, cfg)
+            autos = [r for r in recs if r.governor.decision == DECISION_AUTO]
+            humans = [r for r in recs if r.governor.decision == DECISION_HUMAN]
+            wrong = None
+            if gt is not None:
+                wrong = sum(1 for r in autos
+                            if gt.get(r.finding.bank_txn_id, {}).get("true_settlement_id")
+                            != r.finding.matched_settlement_id)
+            return {"auto_resolved": len(autos), "human_review": len(humans),
+                    "wrong_auto_resolutions": wrong,
+                    "policy": {"enabled": cfg.enabled, "min_confidence": cfg.min_confidence,
+                               "allowlist": list(cfg.allowlist)}}
+
+        before = run(self.policy)
+        hypo = GovernorConfig(enabled=enabled, min_confidence=min_confidence, allowlist=list(allowlist),
+                              min_drift_days=self.policy.min_drift_days,
+                              max_drift_days=self.policy.max_drift_days, version=self.policy.version)
+        after = run(hypo)
+        d_auto = after["auto_resolved"] - before["auto_resolved"]
+        d_wrong = ((after["wrong_auto_resolutions"] or 0) - (before["wrong_auto_resolutions"] or 0)
+                   if gt is not None else None)
+        return {
+            "graded": self.has_ground_truth, "before": before, "after": after,
+            "delta_auto_resolved": d_auto,
+            "delta_human_review": after["human_review"] - before["human_review"],
+            "delta_wrong_auto_resolutions": d_wrong,
+            "verdict": (
+                "Loosening this policy would auto-resolve more items but introduce "
+                f"{d_wrong} wrong auto-resolution(s) — not worth it."
+                if (d_wrong or 0) > 0 else
+                ("More items auto-resolve with no new wrong resolutions — a safe tightening of the queue."
+                 if d_auto > 0 else
+                 "Fewer items auto-resolve; more go to humans — a more conservative posture.")),
         }
 
     def set_policy(self, enabled: bool, min_confidence: float, allowlist: list[str]) -> dict:
@@ -302,10 +373,28 @@ class ReconService:
                   {"t": ts(6), "event": "Governor " + ("AUTO-RESOLVED" if g.decision == DECISION_AUTO else "BLOCKED")},
                   {"t": ts(6), "event": "Routed to " + ("AUTO-RESOLUTION" if g.decision == DECISION_AUTO else "HUMAN REVIEW")}]
 
+        from ..engine import reasons as R
+        if sid is None:
+            _reason, _rtype = R.NO_CANDIDATE, None
+        elif not (bc.utr or ""):
+            _reason, _rtype = R.MISSING_SOURCE, R.AGENT_VERIFIED
+        else:
+            _reason, _rtype = R.AMBIGUOUS_CANDIDATE, R.AGENT_VERIFIED
+        _auto = g.decision == DECISION_AUTO
+        _delta = (bc.credit_amount - settlement.amount) if settlement else None
+        taxonomy = {
+            "match_status": R.MATCHED if _auto else (R.HUMAN_REVIEW if sid else R.EXCEPTION),
+            "resolution_type": _rtype, "exception_reason": None if _auto else _reason,
+            "delta_paise": _delta,
+            "delta_percent": R.delta_percent(_delta, bc.credit_amount) if _delta is not None else None,
+            "nearest_candidate_id": sid,
+            "suggested_action": ("Auto-resolved — verifier passed and on allowlist."
+                                 if _auto else R.suggest_action(_reason)),
+        }
         return {
             "id": bid, "scope": "credit", "flow": "Bank Credit → Settlement",
             "break_type": btype, "severity": sev, "records": records, "diff": diff,
-            "trace": steps, "reason": finding.narrative,
+            "taxonomy": taxonomy, "trace": steps, "reason": finding.narrative,
             "finding": {"matched": sid, "confidence": round(finding.confidence, 3),
                         "basis": finding.match_basis, "evidence": finding.evidence},
             "verification": {"verified": v.verified, "checks": checks,
@@ -363,10 +452,29 @@ class ReconService:
                  {"t": ts(2), "event": "No single rule resolves the gap"},
                  {"t": ts(3), "event": "Routed to HUMAN REVIEW"}]
 
+        from ..engine import reasons as R
+        _rmap = {"Timing mismatch": R.TIMING_WINDOW_MISS, "Compound variance": R.COMPOUND_UNRESOLVED}
+        _reason = _rmap.get(btype, R.UNEXPLAINED)
+        # the break delta is the ledger booking gap (unbooked refund), NOT the normal gross→net
+        # deduction — keep this identical to the exception queue's delta for the same row.
+        if btype == "Compound variance" and report and ledger:
+            _delta = (p.captured_amount - report.refund_deduction) - ledger.booked_amount
+            _base = p.captured_amount
+        elif diff:
+            _delta, _base = diff["difference"], diff["gross"]
+        else:
+            _delta, _base = None, 0
+        taxonomy = {
+            "match_status": R.HUMAN_REVIEW, "resolution_type": None, "exception_reason": _reason,
+            "delta_paise": _delta,
+            "delta_percent": R.delta_percent(_delta, _base) if _delta is not None else None,
+            "nearest_candidate_id": (report.settlement_id if report else None),
+            "suggested_action": R.suggest_action(_reason),
+        }
         return {
             "id": pid, "scope": "payment", "flow": "Payment → Ledger",
             "break_type": btype, "severity": sev, "records": records, "diff": diff,
-            "trace": [], "reason": reason, "finding": None, "verification": None,
+            "taxonomy": taxonomy, "trace": [], "reason": reason, "finding": None, "verification": None,
             "governor": {"decision": "human_review", "reason": "payment break — not agent-auto-resolvable",
                          "confidence": None, "threshold": self.policy.min_confidence},
             "timeline": timeline, "audit": audit,

@@ -206,6 +206,9 @@
   .drawer h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin:0 0 4px} .drawer .x{position:absolute;top:16px;right:18px;cursor:pointer;color:var(--muted);font-size:18px}
   .arow{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line2);font-size:12.5px} .arow:last-child{border-bottom:0}
   .arow .at{font-family:var(--mono);color:var(--faint);flex:none} .arow.pass .ae{color:var(--green);font-weight:600} .arow.block .ae{color:var(--amber);font-weight:600}
+  .rcode{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--muted);white-space:nowrap} .dl{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .taxo{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 2px} .taxo .tk{font-family:var(--mono);font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;color:var(--muted)} .taxo .tk b{color:var(--ink);font-weight:600}
+  .wf-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:640px} @media(max-width:820px){.wf-cmp{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -239,6 +242,7 @@
     <div class="grp">System</div>
     <div class="nav" data-v="data"><span class="ic">⬍</span> Data</div>
     <div class="nav" data-v="settings"><span class="ic">⚙</span> Governor</div>
+    <div class="nav" data-v="whatif"><span class="ic">⟳</span> What-if simulator</div>
   </nav>
 
   <main>
@@ -276,7 +280,7 @@
     <!-- EXCEPTIONS -->
     <section class="view" id="v-exceptions">
       <div class="phead"><div><h1>Exception Queue</h1><div class="sub">Everything deterministic matching could not prove. Click a row to investigate.</div></div></div>
-      <div class="card"><table><thead><tr><th>Severity</th><th class="num">Amount</th><th>Flow</th><th>Break type</th><th>Confidence</th><th>Status</th></tr></thead><tbody id="ex-body"></tbody></table></div>
+      <div class="card"><table><thead><tr><th>Severity</th><th class="num">Amount</th><th>Flow</th><th>Break type</th><th>Reason code</th><th>Confidence</th><th>Status</th></tr></thead><tbody id="ex-body"></tbody></table></div>
     </section>
 
     <!-- WORKSPACE -->
@@ -284,6 +288,7 @@
       <div class="ws-head"><span class="back" id="ws-back">← Exceptions</span><span class="idh" id="ws-id">—</span>
         <span class="pill" id="ws-type"></span><span class="flow" id="ws-flow"></span>
         <div class="spacer" style="flex:1"></div><button class="btn sm" id="ws-audit-btn">View audit</button></div>
+      <div class="taxo" id="ws-taxo"></div>
       <div class="ws-grid">
         <div><h2 class="sec" style="margin-top:0">Investigation path</h2><div class="timeline" id="ws-timeline"></div></div>
         <div id="ws-detail"></div>
@@ -371,9 +376,26 @@
       </div>
     </section>
 
+    <!-- WHAT-IF SIMULATOR -->
+    <section class="view" id="v-whatif">
+      <div class="phead"><div><h1>What-if simulator</h1><div class="sub">Change the governance policy and see the effect on the same batch <b>before you commit it</b> — including the safety cost. Loosening is never presented as automatically better.</div></div></div>
+      <div class="panelbox" style="max-width:none">
+        <div class="ask" style="align-items:center;gap:20px">
+          <div class="ctl"><label class="muted" style="font-size:12px">Auto-resolution</label><br>
+            <label class="switch"><input type="checkbox" id="wi-en"><span class="sl"></span></label></div>
+          <div class="ctl"><label class="muted" style="font-size:12px">Confidence threshold: <b id="wi-conf-v" class="mono">0.95</b></label><br>
+            <input type="range" id="wi-conf" min="0.5" max="1" step="0.01" value="0.95" style="width:220px"></div>
+          <div class="ctl"><label class="muted" style="font-size:12px">Allow bank–settlement</label><br>
+            <label class="switch"><input type="checkbox" id="wi-allow" checked><span class="sl"></span></label></div>
+          <button class="btn primary" id="wi-go">Simulate ▸</button>
+        </div>
+        <div id="wi-result" style="margin-top:18px"></div>
+      </div>
+    </section>
+
     <!-- SETTINGS / GOVERNOR -->
     <section class="view" id="v-settings">
-      <div class="phead"><div><h1>Governor</h1><div class="sub">Controlled autonomy — the system acts only inside a boundary you set.</div></div></div>
+      <div class="phead"><div><h1>Governor</h1><div class="sub">Controlled autonomy — the system acts only inside a boundary you set. <span class="rcode" id="g-version" style="margin-left:6px"></span></div></div></div>
       <div class="panelbox">
         <div class="row"><div><div class="l">Auto-resolution</div><div class="sub">Master switch — off is the safe default</div></div>
           <label class="switch"><input type="checkbox" id="g-en"><span class="sl"></span></label></div>
@@ -418,6 +440,7 @@ function show(v){
   if(v==="architecture"){loadArchitecture();}
   if(v==="benchmark"){loadBenchmark();}
   if(v==="memory"){loadMemory();}
+  if(v==="whatif"&&!loaded.whatif){loadWhatIf();loaded.whatif=1;}
   if(v==="audit")loadAudit();
   if(v==="data"&&!loaded.data){loadData();loaded.data=1;}
   if(v==="settings"&&!loaded.settings){loadSettings();loaded.settings=1;}
@@ -620,10 +643,16 @@ $("#sot-go").addEventListener("click",()=>lookupTxn());$("#sot-id").addEventList
 /* exceptions */
 function sevPill(s){return `<span class="pill ${s.toLowerCase()}"><span class="sev-dot ${s.toLowerCase()}"></span>${s}</span>`;}
 function statusPill(s){const c=s.toLowerCase().replace(/[^a-z]/g,"");return `<span class="pill ${c}">${s}</span>`;}
+function reasonChip(r){
+  const code=r.exception_reason||(r.resolution_type?("→ "+r.resolution_type):"—");
+  const d=r.delta_paise;
+  const delta=(d!=null&&d!==0)?` <span class="dl">${d>0?'+':''}${rsFull(d)}${r.delta_percent?` (${r.delta_percent>0?'+':''}${r.delta_percent}%)`:''}</span>`:"";
+  return `<span class="rcode" title="${(r.suggested_action||'').replace(/"/g,'')}">${code}</span>${delta}`;
+}
 async function loadExceptions(){const rows=await jget("/api/exceptions");
   $("#ex-body").innerHTML=rows.map(r=>`<tr class="click" data-id="${r.id}">
     <td>${sevPill(r.severity)}</td><td class="num amt">${rsFull(r.amount)}</td><td class="flow">${r.flow}</td>
-    <td>${r.kind}<div class="id">${r.id}</div></td><td class="mono">${r.confidence!=null?r.confidence.toFixed(2):"—"}</td><td>${statusPill(r.status)}</td></tr>`).join("");
+    <td>${r.kind}<div class="id">${r.id}</div></td><td>${reasonChip(r)}</td><td class="mono">${r.confidence!=null?r.confidence.toFixed(2):"—"}</td><td>${statusPill(r.status)}</td></tr>`).join("");
   $$("#ex-body tr").forEach(t=>t.addEventListener("click",()=>openWorkspace(t.dataset.id)));}
 
 /* workspace */
@@ -635,6 +664,14 @@ async function openWorkspace(id){
   _wsAudit={id,rows:d.audit};
   $("#ws-type").className="pill "+d.severity.toLowerCase();$("#ws-type").textContent=d.break_type;
   $("#ws-flow").textContent=d.flow;
+  const tx=d.taxonomy||{};
+  $("#ws-taxo").innerHTML=tx.match_status?`
+    <span class="tk">status <b>${tx.match_status}</b></span>
+    ${tx.resolution_type?`<span class="tk">resolution <b>${tx.resolution_type}</b></span>`:""}
+    ${tx.exception_reason?`<span class="tk">reason <b>${tx.exception_reason}</b></span>`:""}
+    ${tx.delta_paise!=null&&tx.delta_paise!==0?`<span class="tk">delta <b>${tx.delta_paise>0?'+':''}${rsFull(tx.delta_paise)}${tx.delta_percent?` (${tx.delta_percent}%)`:''}</b></span>`:""}
+    ${tx.nearest_candidate_id?`<span class="tk">nearest <b class="mono">${tx.nearest_candidate_id}</b></span>`:""}
+    ${tx.suggested_action?`<span class="tk" style="border-style:dashed">▸ ${tx.suggested_action}</span>`:""}`:"";
   $("#ws-timeline").innerHTML=d.timeline.map(n=>`<div class="tnode ${n.state}"><div class="dot"></div><div class="n">${n.node}</div><div class="d">${n.detail}</div></div>`).join("");
   d.scope==="credit"?renderCreditDetail(d):renderPaymentDetail(d);
 }
@@ -775,9 +812,35 @@ $("#up-go").addEventListener("click",async()=>{const fd=new FormData();let miss=
   $("#up-status").textContent="uploading…";const r=await fetch("/api/dataset/upload",{method:"POST",body:fd});
   if(!r.ok){$("#up-status").innerHTML=`<span class="err">${(await r.json()).detail}</span>`;return;}
   $("#up-status").textContent="reconciled ✓";loaded={};await refreshDatasets();show("overview");});
+async function loadWhatIf(){const p=await jget("/api/policy");
+  $("#wi-en").checked=p.enabled;$("#wi-conf").value=p.min_confidence;$("#wi-conf-v").textContent=Number(p.min_confidence).toFixed(2);
+  $("#wi-allow").checked=p.allowlist.includes("bank_settlement_match");}
+$("#wi-conf").addEventListener("input",e=>$("#wi-conf-v").textContent=Number(e.target.value).toFixed(2));
+$("#wi-go").addEventListener("click",async()=>{
+  const body={enabled:$("#wi-en").checked,min_confidence:parseFloat($("#wi-conf").value),
+    allowlist:$("#wi-allow").checked?["bank_settlement_match"]:[]};
+  const box=$("#wi-result");$("#wi-go").disabled=true;
+  box.innerHTML='<div class="muted">running the current and hypothetical policy on the same batch…</div>';
+  try{
+    const r=await (await fetch("/api/whatif",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)})).json();
+    const cell=(t,s)=>`<div class="card" style="padding:14px 16px">
+      <div class="l" style="font-weight:700;font-size:12px;margin-bottom:8px">${t}</div>
+      <div class="m4" style="grid-template-columns:1fr 1fr">
+        <div class="chip"><div class="l">Auto-resolved</div><div class="v">${s.auto_resolved}</div></div>
+        <div class="chip"><div class="l">Human review</div><div class="v">${s.human_review}</div></div>
+      </div>
+      ${s.wrong_auto_resolutions!=null?`<div class="chip" style="margin-top:8px"><div class="l">Wrong auto-resolutions</div><div class="v" style="color:${s.wrong_auto_resolutions>0?'var(--red,#d33)':'var(--green)'}">${s.wrong_auto_resolutions}</div></div>`:""}</div>`;
+    const bad=(r.delta_wrong_auto_resolutions||0)>0;
+    box.innerHTML=`<div class="wf-cmp">${cell("Current policy",r.before)}${cell("Hypothetical policy",r.after)}</div>
+      <div class="whybox ${bad?'no':'yes'}" style="max-width:640px;margin-top:16px"><div class="h">Verdict</div><p style="color:var(--ink)">${r.verdict}</p></div>
+      <p class="muted" style="margin-top:8px;font-size:12px">Δ auto-resolved ${r.delta_auto_resolved>0?'+':''}${r.delta_auto_resolved} · Δ human ${r.delta_human_review>0?'+':''}${r.delta_human_review}${r.delta_wrong_auto_resolutions!=null?` · Δ wrong ${r.delta_wrong_auto_resolutions>0?'+':''}${r.delta_wrong_auto_resolutions}`:''}. Measured on the loaded dataset; nothing is applied until you save it on the Governor page.</p>`;
+  }catch(e){box.innerHTML=`<div class="err">error: ${e}</div>`;}
+  $("#wi-go").disabled=false;
+});
 async function loadSettings(){const p=await jget("/api/policy");
   $("#g-en").checked=p.enabled;$("#g-conf").value=p.min_confidence;$("#g-conf-v").textContent=Number(p.min_confidence).toFixed(2);
-  const on=p.allowlist.includes("bank_settlement_match");$("#cat-bsm").classList.toggle("on",on);$("#cat-bsm").textContent=on?"✓":"";}
+  const on=p.allowlist.includes("bank_settlement_match");$("#cat-bsm").classList.toggle("on",on);$("#cat-bsm").textContent=on?"✓":"";
+  if(p.version)$("#g-version").textContent="policy "+p.version;}
 $("#g-conf").addEventListener("input",e=>$("#g-conf-v").textContent=Number(e.target.value).toFixed(2));
 $("#cat-bsm").addEventListener("click",e=>{const on=!e.target.classList.contains("on");e.target.classList.toggle("on",on);e.target.textContent=on?"✓":"";});
 $("#g-save").addEventListener("click",async()=>{await fetch("/api/policy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({enabled:$("#g-en").checked,min_confidence:parseFloat($("#g-conf").value),allowlist:$("#cat-bsm").classList.contains("on")?["bank_settlement_match"]:[]})});

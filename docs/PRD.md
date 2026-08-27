@@ -150,6 +150,10 @@ Because `net = gross − Σ deductions`, debits always equal the single credit t
 
 This is `search ≠ check` turned on the agent's own reasoning: the *explanation*, not just the match, must survive deterministic re-derivation. It proves controlled autonomy actively **blocks** a wrong AI proposal. (`GET /api/guardrail`; **Safety guardrail** page.)
 
+**5. Formal reason-code taxonomy (§8).** Status ≠ reason: every item carries `match_status` (MATCHED / EXCEPTION / HUMAN_REVIEW), a `resolution_type` when matched (EXACT / TOLERANCE / SPLIT / RULE_BASED / AGENT_VERIFIED), and an `exception_reason` when not (NO_CANDIDATE, AMBIGUOUS_CANDIDATE, TIMING_WINDOW_MISS, DUPLICATE_REFERENCE, REFUND_UNRESOLVED, COMPOUND_UNRESOLVED, MISSING_SOURCE, UNEXPLAINED, …), plus `delta_paise` / `delta_percent` (the **break** gap — e.g. the unbooked refund — not the normal gross→net), `nearest_candidate_id`, and a `suggested_action`. Surfaced as a Reason-code column in the queue and a taxonomy strip in the workspace. (`ledgerproof/engine/reasons.py`.)
+
+**6. What-if policy simulator (§31) + policy versioning (§34).** The **What-if simulator** page runs the current and a hypothetical governor policy on the same batch and shows the before/after auto-resolve / human-review split **and the measured safety cost** (`wrong_auto_resolutions`) — loosening a threshold is never presented as automatically better. Every governor config carries a `version` stamp that lands in each audit record. (`POST /api/whatif`; `GovernorConfig.version`.)
+
 ---
 
 ## 6. System architecture

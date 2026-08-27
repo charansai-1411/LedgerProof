@@ -79,6 +79,10 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def set_policy(update: PolicyUpdate) -> dict:
         return svc().set_policy(update.enabled, update.min_confidence, update.allowlist)
 
+    @app.post("/api/whatif")
+    def what_if(update: PolicyUpdate) -> dict:
+        return svc().what_if(update.enabled, update.min_confidence, update.allowlist)
+
     @app.get("/api/transaction/{payment_id}")
     def transaction(payment_id: str) -> dict:
         t = svc().transaction(payment_id)

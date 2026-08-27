@@ -22,6 +22,7 @@ class Governor:
             "enabled": self.cfg.enabled,
             "min_confidence": self.cfg.min_confidence,
             "allowlist": list(self.cfg.allowlist),
+            "version": self.cfg.version,
         }
 
     def decide(self, finding: AgentFinding, verification: VerificationResult) -> GovernorDecision:

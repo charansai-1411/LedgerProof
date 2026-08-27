@@ -48,5 +48,6 @@ class DecisionRecord:
         rec["governor_decision"] = self.governor.decision
         rec["governor_reason"] = self.governor.reason
         rec["policy"] = self.governor.policy
+        rec["policy_version"] = self.governor.policy.get("version", "v1")
         rec["reversible"] = True
         return rec

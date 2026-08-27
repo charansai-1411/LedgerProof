@@ -19,6 +19,7 @@ class GovernorConfig:
     allowlist: list[str]
     min_drift_days: int
     max_drift_days: int
+    version: str = "v1"  # policy version stamp — recorded in every audit record (§34)
 
     @classmethod
     def load(cls, path: Path | str = DEFAULT_GOVERNOR) -> "GovernorConfig":
@@ -31,4 +32,5 @@ class GovernorConfig:
             allowlist=list(ar["allowlist"]),
             min_drift_days=int(v.get("min_drift_days", 0)),
             max_drift_days=int(v.get("max_drift_days", 4)),
+            version=str(raw.get("version", "v1")),
         )

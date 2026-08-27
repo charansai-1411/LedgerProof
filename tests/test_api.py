@@ -216,6 +216,57 @@ def test_tds_applied_and_itemized(client):
     assert tds_seen
 
 
+def test_reason_code_taxonomy(client):
+    """Every exception carries the §8 taxonomy: status ≠ reason, plus delta and a suggested action."""
+    from ledgerproof.engine import reasons as R
+    rows = client.get("/api/exceptions").json()
+    assert rows
+    valid_reasons = {R.NO_CANDIDATE, R.AMBIGUOUS_CANDIDATE, R.TOLERANCE_EXCEEDED, R.SPLIT_UNRESOLVED,
+                     R.TIMING_WINDOW_MISS, R.DUPLICATE_REFERENCE, R.REFUND_UNRESOLVED,
+                     R.COMPOUND_UNRESOLVED, R.MISSING_SOURCE, R.UNEXPLAINED}
+    for r in rows:
+        for k in ("match_status", "exception_reason", "delta_paise", "delta_percent",
+                  "nearest_candidate_id", "suggested_action"):
+            assert k in r
+        assert r["match_status"] in {R.MATCHED, R.EXCEPTION, R.HUMAN_REVIEW}
+        if r["exception_reason"] is not None:
+            assert r["exception_reason"] in valid_reasons
+            assert r["suggested_action"]
+    # a payment compound break maps to COMPOUND_UNRESOLVED with a real dela
+    comp = next((r for r in rows if r["kind"] == "Compound variance"), None)
+    if comp:
+        assert comp["exception_reason"] == R.COMPOUND_UNRESOLVED
+        assert comp["delta_paise"] is not None
+
+
+def test_what_if_simulator(client):
+    """The simulator shows before/after and, on graded data, the safety cost of loosening."""
+    # loosen the confidence bar from the default and see the effect
+    r = client.post("/api/whatif", json={"enabled": True, "min_confidence": 0.5,
+                                         "allowlist": ["bank_settlement_match"]}).json()
+    assert "before" in r and "after" in r and r["graded"] is True
+    assert r["after"]["auto_resolved"] >= r["before"]["auto_resolved"]  # looser → at least as many
+    # the safety number is measured, not assumed
+    assert r["after"]["wrong_auto_resolutions"] is not None
+    assert r["verdict"]
+
+
+def test_policy_version_stamped(client):
+    """Policy carries a version, and it lands in the audit record (§34)."""
+    assert client.get("/api/policy").json()["version"]
+    from ledgerproof.agent.model import AgentFinding
+    from ledgerproof.verifier.governor import Governor
+    from ledgerproof.verifier.config import GovernorConfig
+    from ledgerproof.verifier.models import DecisionRecord, VerificationResult
+    cfg = GovernorConfig(enabled=True, min_confidence=0.9, allowlist=["bank_settlement_match"],
+                         min_drift_days=0, max_drift_days=4, version="v2")
+    f = AgentFinding(bank_txn_id="b", matched_settlement_id="s", confidence=0.99,
+                     match_basis=["exact_utr"])
+    v = VerificationResult(True, "ok", {"amount": True})
+    rec = DecisionRecord(f, v, Governor(cfg).decide(f, v))
+    assert rec.to_audit()["policy_version"] == "v2"
+
+
 def test_memory_endpoint(client):
     m = client.get("/api/memory").json()
     assert m["known_pattern_hits"] > 0
