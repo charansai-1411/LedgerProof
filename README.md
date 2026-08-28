@@ -139,7 +139,7 @@ The agent receives a bank credit and investigates it the way an analyst would: f
 
 - *Why not?* Three reasons. It doesn't scale (100k payments don't fit, and shouldn't). It can't cite evidence — you get an answer with no auditable trail. And it invites hallucination — the model will pattern-match a plausible-looking settlement it never actually checked. Tools (`get_settlement`, `search_candidate_settlements`, `search_timing_window`, `get_fee_configuration`, `explode_settlement`, …) keep the agent *grounded in real records*, make every step auditable, and cost a handful of cheap calls instead of a giant prompt.
 
-**Decision 2: one investigator, not a swarm — and we *measured* it rather than assuming.** A flashier submission ships six agents. We built both a single agent and a router-plus-specialists multi-agent (settlement / timing / refund specialists), ran them on identical data, and looked at the numbers (§6.2). Multi-agent tied single-agent on accuracy and cost **3–4× more**. This is a single-expertise-domain problem — every exception is "match a credit to a settlement" — so specialization buys nothing and pays for the privilege. **We chose the single agent because the evidence said so, not because it was easier.** Honesty about a negative result is itself the hiring signal.
+**Decision 2: one investigator, not a swarm — and we *measured* it rather than assuming.** A flashier submission ships six agents. We built both a single agent and a router-plus-specialists multi-agent (settlement / timing / refund specialists), ran them on identical data, and looked at the numbers (�section 6.2). Multi-agent tied single-agent on accuracy and cost **3–4× more**. This is a single-expertise-domain problem — every exception is "match a credit to a settlement" — so specialization buys nothing and pays for the privilege. **We chose the single agent because the evidence said so, not because it was easier.** Honesty about a negative result is itself the hiring signal.
 
 **Decision 3: the LLM is swappable and never load-bearing.** The agent sits behind an `AgentModel` interface with two implementations: a deterministic `heuristic` (always runs, no API — so the pipeline is testable and the demo never depends on a network) and `gemini` on Vertex AI (verified live). The LLM makes the pipeline *smart*; it is never required for the pipeline to *run*.
 
@@ -201,7 +201,7 @@ net = gross − MDR − GST(18% on MDR) − refund − rolling reserve − TDS(0
 
 - *Why bother with TDS and a 0.1% line?* Because a judge glancing at the fee model decides "knows Indian payments" versus "made-up numbers" on the *shape*, not the basis points — and the shape has to be real. MDR is method-specific (UPI ≈ 0%, cards ≈ 2%, netbanking a flat fee), GST is 18% *on the fee*, and TDS is a marketplace tax on *gross* that applies even to UPI. Both the generator and the engine read the **same** `fees.yaml` and compute this identically — fees are *policy*, not hardcode — so a fee break can only ever come from real policy, never from two code paths disagreeing. The waterfall nets to the paisa on every one of the ~5,000 rows, checked as a generator invariant.
 
-  This also sets the **UPI-zero-fee trap**: since UPI has 0% MDR, a fee-variance exception must *never* land on UPI — and the generator asserts it never does. It is the same fact the verifier uses to catch the hallucinated-UPI-fee attack in §4.3.
+  This also sets the **UPI-zero-fee trap**: since UPI has 0% MDR, a fee-variance exception must *never* land on UPI — and the generator asserts it never does. It is the same fact the verifier uses to catch the hallucinated-UPI-fee attack in �section 4.3.
 
 **Decision: scenario-based generation, not random corruption.** We don't sprinkle noise on every row; we generate *business scenarios* with configurable rates — clean matches, fee/GST deductions, timing/in-transit, refund offsets, compound breaks, ambiguous multi-candidate cases (→ human review, by design), and genuine orphans (→ unresolved, by design). Difficulty is a knob (`realistic` / `hard` / `adversarial`), and a **held-out set uses a different seed and an unseen break mix**, so reported metrics are never fit to the data the system was tuned on.
 
@@ -270,7 +270,7 @@ Gross PG captures ingested ............ 5,000        Ingested
   FALSE MATCH RATE .................... 0.0%         100% deterministic integrity
 ```
 
-The 7 "pending human" are the correctly-matched-but-below-threshold hero credits from §4.4 — the conservative escalation, made visible. For every reconciled break, the workspace generates the **balancing double-entry journal** (debits for bank + each deduction = the customer-sale credit, to the paisa), so a resolution is a bookable adjustment, not just a label.
+The 7 "pending human" are the correctly-matched-but-below-threshold hero credits from �section 4.4 — the conservative escalation, made visible. For every reconciled break, the workspace generates the **balancing double-entry journal** (debits for bank + each deduction = the customer-sale credit, to the paisa), so a resolution is a bookable adjustment, not just a label.
 
 ### 6.5 Memory — cheaper on repeats, still verified
 
@@ -349,7 +349,7 @@ A Python-only single-page control room (FastAPI + static HTML, no build step), d
 - **Settlement runs · Recon waterfall · Exceptions** — the batch story, the completeness waterfall, and the reason-coded exception queue (`match_status` / `resolution_type` / `exception_reason`, with delta and a suggested action per item).
 - **Agent workspace** — pick a bank credit and *watch the agent investigate live* (SSE): tool calls → candidate scoring to the paisa → finding → the verifier's re-derivation → the governor's decision → the decision-journey timeline → one-click **journal entry**.
 - **Scenario lab** — generate a fresh workload at any difficulty and stress-test cold; the number that must stay zero is *incorrect resolutions*.
-- **Evaluation · Architecture study · Benchmark matrix · Safety guardrail · Pattern memory** — the evidence pages behind every claim in §6.
+- **Evaluation · Architecture study · Benchmark matrix · Safety guardrail · Pattern memory** — the evidence pages behind every claim in �section 6.
 - **What-if simulator · Governor** — tune the policy and see the before/after and its safety cost before committing; controls are finance-team owned.
 - **Data** — reconcile a bundled sample or upload your own five source CSVs.
 
@@ -362,7 +362,7 @@ A Python-only single-page control room (FastAPI + static HTML, no build step), d
 Scope discipline is a design signal too. We were offered adjacent features and declined the ones that dilute the thesis:
 
 - **No cash-flow forecasting.** It's *prediction*, not *verification* — and the entire premise here is that verification is the bottleneck. Forecasting would be a second, weaker product bolted on.
-- **No generic RAG, graph database, or six-agent swarm.** Each adds surface area and subtracts focus; §6.2 shows the swarm actively loses. Depth beats feature count.
+- **No generic RAG, graph database, or six-agent swarm.** Each adds surface area and subtracts focus; �section 6.2 shows the swarm actively loses. Depth beats feature count.
 - **No LLM anywhere near the ledger.** The model investigates and hypothesizes. It never decides whether arithmetic is correct, never overrides policy, never writes to the books. That boundary is the product.
 
 The two adjacent Track-4 directions we *did* add — a **Settlement Q&A agent** and a **Tax-line matcher** — both reuse the same engine and data and answer over the *already-reconciled, verified* state. They extend the core; they don't distract from it.
