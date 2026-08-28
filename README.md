@@ -369,6 +369,34 @@ Read it honestly in both directions:
 
 That is the real role of the deterministic gate: it is the guarantee that makes *any* proposer — a conservative searcher, an over-eager `greedy`, or a confidently-hallucinating LLM — **safe to deploy**, because a proposer's accuracy never becomes the system's false-match rate. It is why we can swap in Gemini without re-earning trust, and why the anti-hallucination guard (Section 4.3) is the same mechanism, not a separate feature. *(`GET /api/necessity` recomputes this table live on any dataset.)*
 
+### 6.9 The agent's *actual* value — a human-investigation benchmark
+
+If the agent doesn't improve matching accuracy (6.7), it risks being a fancy fallback. So we measured the value it *does* deliver: it changes a human's job on each exception from **searching** candidate settlements to **auditing** one pre-searched, pre-verified finding. We are scrupulous about what is measured versus modeled.
+
+**Measured — counted from the data, no assumptions** (the exceptions that actually reach a human):
+
+| | Held-out (n = 52) | Adversarial (n = 93) |
+|---|--:|--:|
+| Candidate records a human inspects **unassisted** | 6.7 / case | 8.0 / case |
+| Records inspected **assisted** (audit the one finding) | 1.0 / case | 1.0 / case |
+| **Reduction in records inspected** | **6.7×** | **8.0×** |
+| False matches (assisted) | **0** | **0** |
+| True orphans left open (identical either way) | 45 | 79 |
+
+Unassisted, a human must open and compare every candidate settlement in the date window to find — or refute — a match. Assisted, the agent already did that search, so the human confirms a single finding: for a proposed match, the verifier's re-derived net (`settlement rows sum to the credit, to the paisa`); for an opened credit, the "searched N candidates, none reconcile" summary. **The search collapses to an audit.**
+
+**Modeled — a transparent estimate over the measured counts** (constants stated so you can change them: 25 s to open and compare a settlement, ~60 s fixed overhead unassisted, ~40 s assisted):
+
+| | Held-out | Adversarial |
+|---|--:|--:|
+| Minutes / case unassisted | 3.8 | 4.3 |
+| Minutes / case assisted | 1.2 | 1.2 |
+| **Modeled speed-up** | **3.0×** | **3.5×** |
+
+This is **not a human-subjects study** — it is the measured record-reduction scaled by a stated per-record cost. The reduction factor is the honest headline; the minutes are an illustration that moves with the assumptions. Accuracy is deliberately held at **parity**: a careful human reaches the same answer unassisted, so false matches stay 0 and the same true orphans are left open — **only the effort changes**.
+
+This is the agent's natural role, stated plainly: **it does not need to beat deterministic code at matching; it makes exception handling dramatically faster at equal accuracy.** That is a value an LLM can genuinely add on top of a deterministic core — evidence-gathering and narration a human would otherwise do by hand — without ever being trusted to decide the match. *(`GET /api/human-benchmark` recomputes this on any dataset.)*
+
 ## 7. Reproduce every number
 
 Plain `pip` — no build step, no `npm`, one command to a running system.
@@ -457,7 +485,7 @@ The two adjacent Track-4 directions we *did* add — a **Settlement Q&A agent** 
 
 ## 10. Limitations & honesty
 
-- **The agent's marginal accuracy over deterministic search is zero on realistic data — and we say so.** Deterministic search resolves 100% of matchable credits; the agent's opportunity is 0 on three realistic sets and 1 recoverable case in 41 on the adversarial set (Section 6.7). We do **not** claim the agent improves matching accuracy, and we refused to make the realistic data harder to pretend otherwise. Its honest role is an escalation layer for assumption-violations and human-queue reduction under distribution shift — a value that is ~0 today and grows only as production data drifts from the rules' assumptions. If you were hoping for "the LLM cracked reconciliation," this project deliberately disappoints you: the *architecture*, not the model, is what earns trust.
+- **The agent's marginal accuracy over deterministic search is zero on realistic data — and we say so.** Deterministic search resolves 100% of matchable credits; the agent's opportunity is 0 on three realistic sets and 1 recoverable case in 41 on the adversarial set (Section 6.7). We do **not** claim the agent improves matching accuracy, and we refused to make the realistic data harder to pretend otherwise. Its honest value is two separate things, and we keep them separate: (1) a **measured effort reduction** on exception handling — a human inspects **6.7× fewer** candidate records per case, at accuracy parity (Section 6.9); and (2) escalation/robustness as production data drifts from the rules' assumptions — which reduces the *number* of cases reaching a human, a value that is ~0 today and grows only with drift. The agent does not cut how *many* exceptions reach a human on realistic data (accuracy parity); it cuts the *work per exception*. If you were hoping for "the LLM cracked reconciliation," this project deliberately disappoints you: the *architecture*, not the model, is what earns trust.
 - **The genuinely AI-requiring class we did not manufacture.** Our hard cases are *key-mess* (garbled/missing UTR, date drift), which deterministic search solves. The class that would truly need open-ended investigation is *amount-relationship* mess — a bank credit that equals a settlement's net plus an un-netted refund minus a reserve, with no exact single-settlement match. We chose not to inject it solely to justify the agent; naming it honestly is better than gaming the benchmark.
 - **Human-queue precision is 86.5%, not 100%,** because the governor holds 7 correctly-matched hero credits below the 0.95 confidence bar for human review. This is controlled autonomy behaving correctly — escalating when less certain — reported rather than hidden.
 - **Reserve *release* is modeled structurally but not implemented** (it's a cross-cycle temporal dependency); the withheld reserve is emitted as a labeled line with a `reserve_release` hook, so the stretch slots in without a refactor.

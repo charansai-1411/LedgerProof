@@ -291,6 +291,21 @@ def test_necessity_benchmark(client):
     assert e["det_search_resolved_matchable"] + e["agent_marginal_opportunity"] >= r["population"]["matchable"] - 1
 
 
+def test_human_investigation_benchmark(client):
+    """The agent's honest value: effort reduction at accuracy parity, measured proxies separated
+    from the modeled time estimate."""
+    r = client.get("/api/human-benchmark").json()
+    assert r["graded"] is True and r["investigated"] > 0
+    m = r["measured"]
+    # a human inspects strictly fewer records assisted than unassisted, and it is a real reduction
+    assert m["records_inspected_per_case"]["assisted"] < m["records_inspected_per_case"]["unassisted"]
+    assert m["record_reduction_factor"] > 1.0
+    assert m["false_matches"] == 0                       # accuracy parity: the cardinal metric holds
+    # the time estimate is explicitly modeled with stated, tunable assumptions
+    assert r["modeled_time"]["assumptions"]["seconds_per_record_inspected"] > 0
+    assert r["modeled_time"]["speedup"] > 1.0 and "not a human-subjects study" in r["modeled_time"]["disclaimer"]
+
+
 def test_dataset_card(client):
     c = client.get("/api/dataset-card").json()
     assert c["available"] is True and c["ground_truth_isolated"] is True

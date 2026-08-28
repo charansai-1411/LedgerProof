@@ -141,6 +141,10 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def dataset_card() -> dict:
         return svc().dataset_card()
 
+    @app.get("/api/human-benchmark")
+    def human_benchmark() -> dict:
+        return svc().human_benchmark()
+
     @app.get("/api/matrix")
     def matrix() -> dict:
         path = REPO_ROOT / "docs" / "results_matrix.json"

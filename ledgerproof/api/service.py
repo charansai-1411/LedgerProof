@@ -602,6 +602,10 @@ class ReconService:
         from ..eval.necessity import necessity_report
         return necessity_report(self.data_dir)
 
+    def human_benchmark(self) -> dict:
+        from ..eval.human_bench import human_investigation_report
+        return human_investigation_report(self.data_dir)
+
     def dataset_card(self) -> dict:
         """The injected break composition, straight from the run manifest — so the reader can see
         exactly what was generated, independent of how the matcher performed."""
