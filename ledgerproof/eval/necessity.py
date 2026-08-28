@@ -162,6 +162,30 @@ def necessity_report(data_dir: str | Path) -> dict:
     verifier_work = {"greedy": verify_pass(findings["greedy"]),
                      "det_search": verify_pass(findings["det_search"])}
 
+    # ---- the number that decides whether the agent earns its existence ----
+    # Of the exceptions that reach the agent, how many can it resolve that deterministic search
+    # CANNOT? That is exactly the matchable credits deterministic search leaves open or gets wrong.
+    matchable_set = {b for b in bids if gt[b]["break_type"] in ("clean", "bank_settlement_match")}
+    orphan_set = {b for b in bids if gt[b]["break_type"] == "unexplained"}
+    det = {f.bank_txn_id: f for f in findings["det_search"]}
+    det_resolved = sum(1 for b in matchable_set
+                       if det[b].matched_settlement_id == gt[b]["true_settlement_id"])
+    det_open_matchable = sorted(b for b in matchable_set if det[b].matched_settlement_id is None)
+    # some opened-matchable are genuinely ambiguous (a same-day amount collision) and SHOULD stay
+    # human even for an LLM; separate them from cases softer evidence could actually recover.
+    ambiguous = [b for b in det_open_matchable
+                 if "same_day_collision" in gt[b].get("difficulty", [])]
+    recoverable = [b for b in det_open_matchable if b not in ambiguous]
+    escalation = {
+        "credits_reaching_agent": sum(1 for f in findings["det_search"]
+                                      if not (f.matched_settlement_id and "exact_utr" in f.match_basis)),
+        "det_search_resolved_matchable": det_resolved,
+        "true_orphans_must_stay_human": len(orphan_set),
+        "agent_marginal_opportunity": len(det_open_matchable),   # THE number
+        "of_which_genuinely_ambiguous": len(ambiguous),          # even an LLM should open these
+        "of_which_softer_evidence_might_recover": len(recoverable),
+    }
+
     # ---- 4. decomposed final metrics (with n) ----
     det_grade = grade(findings["det_search"], {"bank_credits": gt})
     return {
@@ -174,6 +198,7 @@ def necessity_report(data_dir: str | Path) -> dict:
         "candidate_reachability": {"matchable": len(matchable), "in_window": reachable,
                                    "recall": round(reachable / len(matchable), 4) if matchable else 1.0},
         "per_class": per_class,
+        "escalation": escalation,
         "verifier_work": verifier_work,
         "decomposition": {
             "det_search_proposal_accuracy": verifier_work["det_search"]["proposal_accuracy"],
@@ -184,30 +209,31 @@ def necessity_report(data_dir: str | Path) -> dict:
             "final_false_match_rate": det_grade["false_match_rate"],
             "n_matchable": det_grade["matchable"],
         },
-        "conclusion": _conclude(per_class, verifier_work, reachable, len(matchable)),
+        "conclusion": _conclude(escalation, verifier_work, reachable, len(matchable)),
     }
 
 
-def _conclude(per_class, verifier_work, reachable, n_matchable) -> str:
+def _conclude(escalation, verifier_work, reachable, n_matchable) -> str:
     gw = verifier_work["greedy"]
-    frontier = [r["class"].replace("hard:", "") for r in per_class
-                if r["class"].startswith("hard") and r["det_search"]["open"] > 0]
-    miss = n_matchable - reachable
+    opp = escalation["agent_marginal_opportunity"]
+    rec = escalation["of_which_softer_evidence_might_recover"]
+    amb = escalation["of_which_genuinely_ambiguous"]
     parts = [
         "Deterministic candidate search (window + amount + UTR-prefix) recovers the hard bank-credit "
-        "cases the exact-key tier cannot — so for the CURRENT break distribution a strong engineer's "
-        "search, not an LLM, is what does the work.",
+        "cases the exact-key tier cannot — so for this break distribution a strong engineer's search, "
+        "not an LLM, does the work.",
+        f"The number that decides whether the agent earns its existence — matchable credits deterministic "
+        f"search leaves for a human — is {opp}: of those, {amb} are genuinely ambiguous (a same-day amount "
+        f"collision an LLM should also OPEN, not force) and only {rec} is a case softer evidence might "
+        f"recover. We therefore do NOT claim the agent improves matching accuracy; on realistic data its "
+        f"marginal accuracy over deterministic search is zero.",
     ]
-    if frontier:
-        parts.append("Its honest frontier is " + ", ".join(sorted(set(frontier))) +
-                     " — cases it conservatively OPENS rather than force-matching (where softer evidence, "
-                     "i.e. an LLM, could add recall at the verifier's gate).")
-    if miss > 0:
-        parts.append(f"{miss} matchable credit(s) fall outside the deterministic date window entirely — "
-                     "the search space did not contain the answer, an a-priori limit of fixed-window search.")
+    if n_matchable - reachable > 0:
+        parts.append(f"{n_matchable - reachable} matchable credit(s) fall outside the deterministic date "
+                     "window entirely — the search space no longer contains the answer, the a-priori limit "
+                     "of fixed-window search and the honest place an adaptive/LLM searcher would help.")
     parts.append(f"The verifier's value shows only against an AGGRESSIVE proposer: greedy proposed "
-                 f"{gw['wrong_proposed']} wrong matches and the verifier rejected {gw['wrong_rejected_by_verifier']} "
-                 f"of them — final false matches {gw['final_false_matches']}. A conservative proposer barely "
-                 f"exercises the verifier; an LLM (which CAN propose confidently-wrong matches) is exactly why "
-                 f"the deterministic gate is non-negotiable.")
+                 f"{gw['wrong_proposed']} wrong matches, the verifier rejected {gw['wrong_rejected_by_verifier']} "
+                 f"of them, final false matches {gw['final_false_matches']} — which is why proposer choice is a "
+                 f"cost/coverage dial, never a safety risk.")
     return " ".join(parts)

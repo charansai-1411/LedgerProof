@@ -8,7 +8,7 @@
 
 **Deterministic code proves the books. A tool-using agent investigates only what the code cannot explain. A deterministic verifier re-derives every finding before it can touch the ledger.**
 
-`94% matched by rule` · `100% of the hard residue recovered by the agent` · `0 false matches across 100,000-payment runs`
+`94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs`
 
 </div>
 
@@ -22,7 +22,7 @@ LedgerProof takes a third position, built on a single observation from complexit
 
 This document explains every design decision, why the obvious-seeming alternatives were rejected, and reports measured results: on a held-out set the system never tuned on, the deterministic engine reconciles **94.0%** of payments and the search-and-verify layer lifts the hard bank-credit residue from **84.1% to 100%**, with a **false-match rate of exactly zero** — a result that holds up to **100,000-payment** enterprise runs where the layer touches **2,027** genuinely ambiguous credits and still asserts **zero** wrong matches.
 
-**A note on honesty, stated before the claims.** We benchmarked whether this problem *needs* an LLM at all — and it does not. A deterministic candidate searcher (the "strong engineer's solution": date window → amount → UTR similarity → rank → verify) recovers the hard cases on realistic data with zero wrong matches, so **that is what we ship** — no per-case LLM bill. The contribution is therefore not "AI reconciles payments"; it is an architecture — **search → deterministic verify → govern** — in which the searcher can be code today or an LLM tomorrow, because the deterministic verifier makes *any* proposer safe. Section 6.7–6.8 prove this the hard way: we show the verifier catching a proposer that is wrong **half the time**, we attach a population **n** to every percentage, and we name the *adversarial* frontier where deterministic search runs out and an LLM's softer evidence would genuinely add recall. Where we did not need AI, we say so.
+**A note on honesty, stated before the claims.** We benchmarked whether this problem *needs* an LLM at all — and it does not. A deterministic candidate searcher (the "strong engineer's solution": date window → amount → UTR similarity → rank → verify) recovers the hard cases on realistic data with zero wrong matches, so **that is what we ship** — no per-case LLM bill. We even measured the one number that decides whether the agent earns its existence — *of the exceptions, how many can the agent resolve that deterministic search cannot* — and on realistic data it is **exactly zero** (Section 6.7). So we make no claim that the agent improves matching accuracy; it is an **escalation layer** for cases whose evidence falls outside the deterministic assumptions, whose value grows only as production data drifts from those assumptions. The contribution is therefore not "AI reconciles payments"; it is an architecture — **search → deterministic verify → govern** — in which the searcher can be code today or an LLM tomorrow, because the deterministic verifier makes *any* proposer safe (Section 6.8 shows it catching a proposer wrong half the time), with a population **n** on every percentage. Where we did not need AI, we say so.
 
 ---
 
@@ -324,6 +324,25 @@ A senior reviewer's first question: *"Why couldn't a strong engineer just write 
 
 **The honest finding: for this break distribution, deterministic search — not an LLM — does the work.** It recovers all 14 hard "hero" credits the exact-key tier can't (exact-key opens 8 of them), with **zero** wrong matches, because the generator's hard cases have a *known* search structure (net-amount equality inside a T+2±1 date window). We therefore **ship the deterministic searcher** — no per-case LLM bill — and treat the Gemini agent as a drop-in that *matches* it, not a crutch the accuracy depends on. Claiming "we needed AI here" when we measurably did not would be the dishonest move.
 
+**The one number that decides whether the agent earns its existence.** Of the exceptions that reach the agent, how many can it resolve that deterministic search *cannot*? That is exactly the matchable credits deterministic search leaves for a human:
+
+| Dataset | Matchable | Det. search resolves | True orphans (→ human) | **Agent's marginal opportunity** |
+|---|--:|--:|--:|:--|
+| held-out (realistic) | 44 | 44 | 45 | **0** |
+| dev (realistic) | 34 | 34 | 45 | **0** |
+| demo (realistic) | 42 | 42 | 52 | **0** |
+| adversarial | 41 | 38 | 79 | **3** — 2 genuinely ambiguous, **1** recoverable |
+
+**On realistic data the agent's marginal matching accuracy over deterministic search is exactly zero — and we say so.** The agent does not improve matching accuracy on the production-shaped workload; deterministic search already resolves 100% of the matchable credits. On the adversarial set the opportunity is 3 credits, and 2 of those are same-day amount collisions an LLM should *also* open rather than force — leaving exactly **1 case in 41** where softer evidence might recover what fixed-window search missed. We refuse to make the realistic dataset harder to inflate that number.
+
+**So what is the agent actually for?** Three honest answers, in decreasing certainty:
+
+1. **It is an escalation layer for assumption-violations, not an accuracy layer.** Every deterministic rule — the T+2±1 window, exact-amount equality, UTR-prefix — is a hardcoded guess about the mess, and each is a brittleness point that production drift *will* eventually violate (a wider settlement delay, an unmodeled fee config, a novel narration format). Each violation is a *silent miss* for the rule-based searcher. The adversarial out-of-window cases are the proof-of-concept: the answer left the fixed window, the rule missed it, and an adaptive/LLM searcher is where you would recover it.
+2. **Its product value is human-queue reduction under drift — honestly ~0 today, growing only as the world diverges from the rules' assumptions.** We report the number we measured, not the one we hoped for.
+3. **The verifier turns the proposer into a cost/coverage dial, not a safety decision.** Ship the cheap deterministic searcher now; add the LLM only if/when production drift makes the human queue expensive enough to justify the per-case cost — and the verifier guarantees that swap can never raise the false-match rate.
+
+This is the hiring signal we actually want to send: *an engineer who measures whether a component is justified, and is willing to write "this workload does not need AI" in the README of an AI track.*
+
 **Where the LLM's frontier actually is.** Run the same benchmark on the *adversarial* set and deterministic search finally shows its limits: **candidate reachability falls to 92.7%** (3 of 41 matchable credits have a value date that drifted *outside* the fixed window — the search space no longer contains the answer), and the searcher **conservatively opens** 2 same-day collisions and 1 garbled-UTR case it cannot disambiguate by amount alone. *That* is the honest frontier — cases needing softer evidence (bank narration, UTR fragments, historical patterns) that an LLM can weigh where fixed-window arithmetic cannot — and every recovery there still has to pass the same deterministic gate. We name the frontier rather than pretend the LLM already conquered it.
 
 ### 6.8 Is the agent solving it, or is the verifier? — the decomposition (with n)
@@ -433,7 +452,8 @@ The two adjacent Track-4 directions we *did* add — a **Settlement Q&A agent** 
 
 ## 10. Limitations & honesty
 
-- **The LLM is not necessary for accuracy on realistic data — and we say so.** A deterministic candidate searcher recovers the hard cases with zero wrong matches (Section 6.7), so we ship it and hold the LLM for the adversarial frontier (out-of-window drift, un-disambiguable collisions) where deterministic search measurably runs out. If you were hoping for "the LLM cracked reconciliation," this project deliberately disappoints you — the honest result is that the *architecture*, not the model, is what earns trust.
+- **The agent's marginal accuracy over deterministic search is zero on realistic data — and we say so.** Deterministic search resolves 100% of matchable credits; the agent's opportunity is 0 on three realistic sets and 1 recoverable case in 41 on the adversarial set (Section 6.7). We do **not** claim the agent improves matching accuracy, and we refused to make the realistic data harder to pretend otherwise. Its honest role is an escalation layer for assumption-violations and human-queue reduction under distribution shift — a value that is ~0 today and grows only as production data drifts from the rules' assumptions. If you were hoping for "the LLM cracked reconciliation," this project deliberately disappoints you: the *architecture*, not the model, is what earns trust.
+- **The genuinely AI-requiring class we did not manufacture.** Our hard cases are *key-mess* (garbled/missing UTR, date drift), which deterministic search solves. The class that would truly need open-ended investigation is *amount-relationship* mess — a bank credit that equals a settlement's net plus an un-netted refund minus a reserve, with no exact single-settlement match. We chose not to inject it solely to justify the agent; naming it honestly is better than gaming the benchmark.
 - **Human-queue precision is 86.5%, not 100%,** because the governor holds 7 correctly-matched hero credits below the 0.95 confidence bar for human review. This is controlled autonomy behaving correctly — escalating when less certain — reported rather than hidden.
 - **Reserve *release* is modeled structurally but not implemented** (it's a cross-cycle temporal dependency); the withheld reserve is emitted as a labeled line with a `reserve_release` hook, so the stretch slots in without a refactor.
 - **Cloud deployment is the one open item.** Everything runs locally, reproducibly, today; the Cloud Run / Vertex / Secret Manager deployment is the remaining bonus.

@@ -283,6 +283,12 @@ def test_necessity_benchmark(client):
     assert g["final_false_matches"] == 0
     assert g["proposal_accuracy"] < 1.0                 # and it is genuinely less accurate than final
     assert r["candidate_reachability"]["recall"] <= 1.0 and r["conclusion"]
+    # the honest "does the agent earn its existence" number, decomposed and self-consistent
+    e = r["escalation"]
+    assert (e["of_which_genuinely_ambiguous"] + e["of_which_softer_evidence_might_recover"]
+            == e["agent_marginal_opportunity"])
+    # on a realistic fixture deterministic search resolves the matchable set → tiny opportunity
+    assert e["det_search_resolved_matchable"] + e["agent_marginal_opportunity"] >= r["population"]["matchable"] - 1
 
 
 def test_dataset_card(client):
