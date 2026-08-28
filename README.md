@@ -343,6 +343,11 @@ A senior reviewer's first question: *"Why couldn't a strong engineer just write 
 
 This is the hiring signal we actually want to send: *an engineer who measures whether a component is justified, and is willing to write "this workload does not need AI" in the README of an AI track.*
 
+> **What a judge will ask — and the answer.**
+> *"Why did you use an AI agent here?"*
+> **"We benchmarked it. On production-shaped cases, deterministic search was sufficient, so we deliberately don't waste an LLM call there. The agent activates when those deterministic assumptions break."**
+> That is stronger, not weaker — it shows we know where AI belongs and where it doesn't.
+
 **Where the LLM's frontier actually is.** Run the same benchmark on the *adversarial* set and deterministic search finally shows its limits: **candidate reachability falls to 92.7%** (3 of 41 matchable credits have a value date that drifted *outside* the fixed window — the search space no longer contains the answer), and the searcher **conservatively opens** 2 same-day collisions and 1 garbled-UTR case it cannot disambiguate by amount alone. *That* is the honest frontier — cases needing softer evidence (bank narration, UTR fragments, historical patterns) that an LLM can weigh where fixed-window arithmetic cannot — and every recovery there still has to pass the same deterministic gate. We name the frontier rather than pretend the LLM already conquered it.
 
 ### 6.8 Is the agent solving it, or is the verifier? — the decomposition (with n)
