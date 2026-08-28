@@ -20,7 +20,9 @@ A merchant reconciling with a payment gateway holds three views of the same mone
 
 LedgerProof takes a third position, built on a single observation from complexity theory: **finding the answer and checking the answer are different problems, and only one of them is hard.** Matching a lumped bank credit to the settlement that produced it — under a garbled reference, a shifting date, and colliding same-day payouts — is a *search* problem, and that is where an AI agent earns its place. But *verifying* a proposed match is pure arithmetic: sum the settlement's constituent rows, compare to the credit, to the paisa. We let the agent search, and we let deterministic code check. The agent can be creative; it cannot be trusted, so it is never believed until the arithmetic re-derives its claim.
 
-This document explains every design decision, why the obvious-seeming alternatives were rejected, and reports measured results: on a held-out set the system never tuned on, the deterministic engine reconciles **94.0%** of payments and the agent lifts the hard bank-credit residue from **84.1% to 100%**, with a **false-match rate of exactly zero** — a result that holds up to **100,000-payment** enterprise runs where the agent touches **2,027** genuinely ambiguous credits and still asserts **zero** wrong matches.
+This document explains every design decision, why the obvious-seeming alternatives were rejected, and reports measured results: on a held-out set the system never tuned on, the deterministic engine reconciles **94.0%** of payments and the search-and-verify layer lifts the hard bank-credit residue from **84.1% to 100%**, with a **false-match rate of exactly zero** — a result that holds up to **100,000-payment** enterprise runs where the layer touches **2,027** genuinely ambiguous credits and still asserts **zero** wrong matches.
+
+**A note on honesty, stated before the claims.** We benchmarked whether this problem *needs* an LLM at all — and it does not. A deterministic candidate searcher (the "strong engineer's solution": date window → amount → UTR similarity → rank → verify) recovers the hard cases on realistic data with zero wrong matches, so **that is what we ship** — no per-case LLM bill. The contribution is therefore not "AI reconciles payments"; it is an architecture — **search → deterministic verify → govern** — in which the searcher can be code today or an LLM tomorrow, because the deterministic verifier makes *any* proposer safe. Section 6.7–6.8 prove this the hard way: we show the verifier catching a proposer that is wrong **half the time**, we attach a population **n** to every percentage, and we name the *adversarial* frontier where deterministic search runs out and an LLM's softer evidence would genuinely add recall. Where we did not need AI, we say so.
 
 ---
 
@@ -139,11 +141,11 @@ The agent receives a bank credit and investigates it the way an analyst would: f
 
 - *Why not?* Three reasons. It doesn't scale (100k payments don't fit, and shouldn't). It can't cite evidence — you get an answer with no auditable trail. And it invites hallucination — the model will pattern-match a plausible-looking settlement it never actually checked. Tools (`get_settlement`, `search_candidate_settlements`, `search_timing_window`, `get_fee_configuration`, `explode_settlement`, …) keep the agent *grounded in real records*, make every step auditable, and cost a handful of cheap calls instead of a giant prompt.
 
-**Decision 2: one investigator, not a swarm — and we *measured* it rather than assuming.** A flashier submission ships six agents. We built both a single agent and a router-plus-specialists multi-agent (settlement / timing / refund specialists), ran them on identical data, and looked at the numbers (�section 6.2). Multi-agent tied single-agent on accuracy and cost **3–4× more**. This is a single-expertise-domain problem — every exception is "match a credit to a settlement" — so specialization buys nothing and pays for the privilege. **We chose the single agent because the evidence said so, not because it was easier.** Honesty about a negative result is itself the hiring signal.
+**Decision 2: one investigator, not a swarm — and we *measured* it rather than assuming.** A flashier submission ships six agents. We built both a single agent and a router-plus-specialists multi-agent (settlement / timing / refund specialists), ran them on identical data, and looked at the numbers (�section 6.2). Multi-agent tied single-agent on accuracy and cost **3–4× more**. This is a single-expertise-domain problem — every exception is "match a credit to a settlement" — so specialization buys nothing and pays for the privilege. **We chose the single agent because the evidence said so, not because it was easier.** Honesty about a negative result is itself the hiring signal.
 
-**Decision 3: the LLM is swappable and never load-bearing.** The agent sits behind an `AgentModel` interface with two implementations: a deterministic `heuristic` (always runs, no API — so the pipeline is testable and the demo never depends on a network) and `gemini` on Vertex AI (verified live). The LLM makes the pipeline *smart*; it is never required for the pipeline to *run*.
+**Decision 3: the LLM is swappable and never load-bearing.** The agent sits behind an `AgentModel` interface with two implementations: a deterministic `heuristic` (always runs, no API — so the pipeline is testable and the demo never depends on a network) and `gemini` on Vertex AI (verified live). The `heuristic` *is* the strong-engineer's candidate search — window + amount + UTR-prefix scoring — and Section 6.7 shows it is not merely a fallback: on realistic data it **matches** the LLM, so the LLM is a capability held in reserve for the adversarial frontier (Section 6.7), gated by the same verifier. The LLM makes the pipeline *smart* where the search space isn't known a priori; it is never required for the pipeline to *run*, nor — measurably — for its accuracy on realistic data.
 
-**Measured:** on the held-out set the agent recovers `14/14` of the hardest "hero" credits (garbled/missing UTR + date drift + same-day collision) and correctly opens `45/45` genuinely unexplained credits as *unresolved* rather than forcing a match.
+**Measured:** on the held-out set the deterministic searcher recovers `14/14` of the hardest "hero" credits (garbled/missing UTR + date drift + same-day collision, n = 14) and correctly opens `45/45` genuinely unexplained credits (n = 45) as *unresolved* rather than forcing a match.
 
 ### 4.3 The verifier — *why it is separate, and never intelligent*
 
@@ -201,9 +203,27 @@ net = gross − MDR − GST(18% on MDR) − refund − rolling reserve − TDS(0
 
 - *Why bother with TDS and a 0.1% line?* Because a judge glancing at the fee model decides "knows Indian payments" versus "made-up numbers" on the *shape*, not the basis points — and the shape has to be real. MDR is method-specific (UPI ≈ 0%, cards ≈ 2%, netbanking a flat fee), GST is 18% *on the fee*, and TDS is a marketplace tax on *gross* that applies even to UPI. Both the generator and the engine read the **same** `fees.yaml` and compute this identically — fees are *policy*, not hardcode — so a fee break can only ever come from real policy, never from two code paths disagreeing. The waterfall nets to the paisa on every one of the ~5,000 rows, checked as a generator invariant.
 
-  This also sets the **UPI-zero-fee trap**: since UPI has 0% MDR, a fee-variance exception must *never* land on UPI — and the generator asserts it never does. It is the same fact the verifier uses to catch the hallucinated-UPI-fee attack in �section 4.3.
+  This also sets the **UPI-zero-fee trap**: since UPI has 0% MDR, a fee-variance exception must *never* land on UPI — and the generator asserts it never does. It is the same fact the verifier uses to catch the hallucinated-UPI-fee attack in �section 4.3.
 
 **Decision: scenario-based generation, not random corruption.** We don't sprinkle noise on every row; we generate *business scenarios* with configurable rates — clean matches, fee/GST deductions, timing/in-transit, refund offsets, compound breaks, ambiguous multi-candidate cases (→ human review, by design), and genuine orphans (→ unresolved, by design). Difficulty is a knob (`realistic` / `hard` / `adversarial`), and a **held-out set uses a different seed and an unseen break mix**, so reported metrics are never fit to the data the system was tuned on.
+
+### 5.1 The credibility risk we have to answer — is the world rigged for the matcher?
+
+We control the generator, the break types, the ground truth, *and* the evaluation. That is enormous opportunity for accidental circularity, and pretending otherwise would be the tell. Three concrete defenses:
+
+**A dataset card, published, so what was generated is visible independent of how the matcher did.** The held-out set (`GET /api/dataset-card`, or `manifest.json`):
+
+| | |
+|---|---|
+| Seed | `20270905` (held-out; dev is `42`, different break mix) |
+| Payments · cycles | 5,000 · 25 |
+| Bank credits · settlements | 89 · 44 |
+| **Injected breaks** | timing/in-transit **131 (2.62%)** · compound/refund **169 (3.38%)** · duplicates **30 (0.60%)** · unexplained/orphan **45 (0.90%)** · hard bank↔settlement **14 (0.28%)** |
+| Ground truth | generated at construction, written to its own file, **never loaded into the working DB** |
+
+**Invariants that are independent of the matcher, asserted on every generate.** The point is that the data is internally sound *before* any matcher looks at it: (1) **financial conservation checked at the settlement header** — `gross in = net + MDR + GST + TDS + reserve + refunds out` — cross-verified against the *independent* per-row check that a settlement's net equals the sum of its report rows (both must hold, so no deduction can be silently invented or dropped); (2) **integer paise everywhere**; (3) the **UPI-zero-fee trap** — no UPI transaction may carry a fee-variance label; (4) **byte-for-byte reproducibility** under a fixed seed. These are conservation and type properties of the *world*, not of the reconciler.
+
+**Hard cases authored by hand, outside the generator's sampling.** The strongest anti-circularity move is to let something other than the generator define "hard." The test `test_handcrafted_adversarial_no_false_match` constructs, by hand, cases the generator's distribution never produced: two settlements with the *identical amount on the same day* (a collision), a credit whose UTR is truncated to a prefix, and a true orphan matching nothing. The system matches the two genuinely-resolvable credits, **opens** the collision and the orphan rather than guessing, and asserts a **false-match rate of zero** — on data the matcher's author did not sample. If the generator were secretly building a world its own matcher wins, a hand-built world would break it. It doesn't.
 
 ---
 
@@ -223,7 +243,7 @@ The question that justifies the whole AI component: *does the agent actually rec
 | **False-match rate** | **0.0** | **0.0** |
 | Unexplained credits correctly left open | — | **45/45** |
 
-The agent lifts the hard residue from **84.1% to 100%** and adds **zero** false matches. Every break type — timing, compound/refund offset, bank-settlement, escalated-unexplained — reconciles at **100%** recall on this set.
+The search-and-verify layer lifts the hard residue from **84.1% to 100%** and adds **zero** false matches. Populations, so the percentages mean something: the held-out bank-credit set is **n = 89** — 30 clean-UTR, **14 hero** (garbled/missing UTR + drift + collision), and 45 true orphans — of which **44 are matchable**; the 100% is 44/44, the hero 100% is 14/14, and the 0 false matches are over 44 asserted matches. Every break type — timing, compound/refund offset, bank-settlement, escalated-unexplained — reconciles at **100%** recall on this set. *(This "agent" is the deterministic searcher; whether it needed to be an LLM is exactly the question Section 6.7 answers — it did not.)*
 
 ### 6.2 Single vs multi-agent — the experiment we let speak
 
@@ -235,7 +255,7 @@ Same data, same tools, same verifier, same governor, same ground truth. **Only t
 | **Single agent** ✓ | **100.0%** | **100.0%** | **0** | **1.0** | **$0.01** | 3,623/s |
 | Multi-agent | 100.0% | 100.0% | 0 | 3.01 | $0.03 | 3,124/s |
 
-**Multi-agent ties single-agent accuracy and costs ~3× the reasoning hops, latency and cost, with no reduction in human exceptions.** The verdict is not "AI good"; it is *"for a single-expertise-domain workload, specialization is pure overhead."* We chose the single investigator on the evidence. Multi-agent would earn its keep only if exceptions spanned genuinely distinct domains (disputes, FX, tax) — and honestly saying so is worth more than pretending the swarm won.
+**Multi-agent ties single-agent accuracy (both 44/44 matchable, n = 44) and costs ~3× the reasoning hops, latency and cost, with no reduction in human exceptions.** The verdict is not "AI good"; it is *"for a single-expertise-domain workload, specialization is pure overhead."* We chose the single investigator on the evidence. Multi-agent would earn its keep only if exceptions spanned genuinely distinct domains (disputes, FX, tax) — and honestly saying so is worth more than pretending the swarm won. (Both tiers here are variants of the same deterministic searcher, routed differently; Section 6.7 is the comparison that actually matters — search vs. exact-key vs. an aggressive guesser.)
 
 ### 6.3 It holds at scale — 9 cells, up to 100,000 payments
 
@@ -270,7 +290,7 @@ Gross PG captures ingested ............ 5,000        Ingested
   FALSE MATCH RATE .................... 0.0%         100% deterministic integrity
 ```
 
-The 7 "pending human" are the correctly-matched-but-below-threshold hero credits from �section 4.4 — the conservative escalation, made visible. For every reconciled break, the workspace generates the **balancing double-entry journal** (debits for bank + each deduction = the customer-sale credit, to the paisa), so a resolution is a bookable adjustment, not just a label.
+The 7 "pending human" are the correctly-matched-but-below-threshold hero credits from �section 4.4 — the conservative escalation, made visible. For every reconciled break, the workspace generates the **balancing double-entry journal** (debits for bank + each deduction = the customer-sale credit, to the paisa), so a resolution is a bookable adjustment, not just a label.
 
 ### 6.5 Memory — cheaper on repeats, still verified
 
@@ -282,9 +302,48 @@ A verifier-gated cache stores the *resolution strategy* for a verified pattern; 
 
 - **Tax-line matcher:** GST-on-MDR re-derived per transaction — **18.00% effective rate, 0 discrepancies** across 2,529 taxable transactions (UPI carries no MDR, hence no GST).
 - **Throughput:** deterministic engine ~**413,000 records/s**; end-to-end with the heuristic agent ~**143,000 records/s**. (With the Gemini agent the end-to-end rate is LLM-bound, but the agent only touches the ~1% the engine can't match, so overall throughput stays high.)
-- **Test suite:** **81 tests**, covering generator reproducibility and invariants, the matching hierarchy, agent output schema, verifier accept/reject (including the anti-hallucination guard), governor thresholds, memory verifier-gating, and ground-truth isolation.
+- **Test suite:** **84 tests**, covering generator reproducibility and invariants (including financial conservation), the matching hierarchy, agent output schema, verifier accept/reject (including the anti-hallucination guard and the aggressive-proposer rejection), governor thresholds, memory verifier-gating, ground-truth isolation, and the hand-authored adversarial fixture.
 
 ---
+
+### 6.7 Is the AI even necessary? — the benchmark that attacks our own thesis
+
+A senior reviewer's first question: *"Why couldn't a strong engineer just write deterministic candidate search — date window → amount window → UTR similarity → rank → verify — with no LLM at all?"* It is the right question, and we answer it with a measurement instead of a slogan. In fact, **our `heuristic` model *is* exactly that deterministic search**, and it is what produced every "single agent" number above. So we benchmarked three tiers on the same held-out data, per exception class, and report what each resolves **before** any verifier runs:
+
+| Class (held-out) | n | Exact-key only | **Deterministic search** | Greedy (always guesses) |
+|---|--:|:--|:--|:--|
+| clean UTR | 30 | 30 ✓ | 30 ✓ | 30 ✓ |
+| hard · date drift | 1 | 1 ✓ | 1 ✓ | 1 ✓ |
+| hard · same-day collision | 11 | 6 ✓, **5 opened** | **11 ✓** | 11 ✓ |
+| hard · garbled UTR | 1 | **opened** | **1 ✓** | 1 ✓ |
+| hard · missing UTR | 1 | **opened** | **1 ✓** | 1 ✓ |
+| unexplained (true orphans) | 45 | 45 opened ✓ | 45 opened ✓ | **45 wrong** |
+| **candidate reachability** | 44 | — | **44/44 in window (100%)** | — |
+
+*(`✓` = correctly resolved; `opened` = conservatively escalated, not a wrong match; `wrong` = false match.)*
+
+**The honest finding: for this break distribution, deterministic search — not an LLM — does the work.** It recovers all 14 hard "hero" credits the exact-key tier can't (exact-key opens 8 of them), with **zero** wrong matches, because the generator's hard cases have a *known* search structure (net-amount equality inside a T+2±1 date window). We therefore **ship the deterministic searcher** — no per-case LLM bill — and treat the Gemini agent as a drop-in that *matches* it, not a crutch the accuracy depends on. Claiming "we needed AI here" when we measurably did not would be the dishonest move.
+
+**Where the LLM's frontier actually is.** Run the same benchmark on the *adversarial* set and deterministic search finally shows its limits: **candidate reachability falls to 92.7%** (3 of 41 matchable credits have a value date that drifted *outside* the fixed window — the search space no longer contains the answer), and the searcher **conservatively opens** 2 same-day collisions and 1 garbled-UTR case it cannot disambiguate by amount alone. *That* is the honest frontier — cases needing softer evidence (bank narration, UTR fragments, historical patterns) that an LLM can weigh where fixed-window arithmetic cannot — and every recovery there still has to pass the same deterministic gate. We name the frontier rather than pretend the LLM already conquered it.
+
+### 6.8 Is the agent solving it, or is the verifier? — the decomposition (with n)
+
+The dangerous way to read "100% accuracy, 0 false matches" is: *the verifier silently cleans up a weak agent.* So we separate the two, with populations attached to every number (held-out):
+
+| Metric | Deterministic search (conservative) | Greedy (aggressive, never opens) |
+|---|--:|--:|
+| Proposals made | **44** | **89** |
+| Proposal accuracy *before* verifier | **100.0%** (44/44) | **49.4%** (44/89) |
+| Wrong proposals | **0** | **45** |
+| Wrong proposals the verifier rejected | 0 of 0 | **45 of 45 (100%)** |
+| **Final false matches** | **0** | **0** |
+
+Read it honestly in both directions:
+
+- **Our shipped proposer is already correct** (44/44), so on that path the verifier rejects *nothing* — it is **not** secretly doing the agent's job. The accuracy is the searcher's, not the checker's.
+- **But the verifier is not decoration**, and we prove it by handing it a proposer that is wrong *half the time*: `greedy` (which always guesses the nearest-amount settlement and never opens) proposes **45 wrong matches**, and the verifier **catches every one** — final false matches **0**. On the adversarial set greedy's proposal accuracy drops to **31.7%** (82 wrong of 120) and the verifier still rejects **82/82**.
+
+That is the real role of the deterministic gate: it is the guarantee that makes *any* proposer — a conservative searcher, an over-eager `greedy`, or a confidently-hallucinating LLM — **safe to deploy**, because a proposer's accuracy never becomes the system's false-match rate. It is why we can swap in Gemini without re-earning trust, and why the anti-hallucination guard (Section 4.3) is the same mechanism, not a separate feature. *(`GET /api/necessity` recomputes this table live on any dataset.)*
 
 ## 7. Reproduce every number
 
@@ -313,6 +372,9 @@ python -m ledgerproof.metrics --data data/heldout --enable-auto --allow bank_set
 
 # 6. The single-vs-multi-agent + scale benchmark matrix (writes docs/RESULTS.md + results_matrix.json)
 python scripts/matrix_benchmark.py
+
+# 6b. The AI-necessity benchmark + verifier decomposition (Section 6.7–6.8), and the dataset card
+python -c "import json,sys; from ledgerproof.eval.necessity import necessity_report as n; from ledgerproof.generator.config import REPO_ROOT; sys.stdout.reconfigure(encoding='utf-8'); print(json.dumps(n(REPO_ROOT/'data'/'heldout'), indent=2))"
 
 # 7. Everything, in a browser
 pip install -r requirements-api.txt
@@ -349,7 +411,7 @@ A Python-only single-page control room (FastAPI + static HTML, no build step), d
 - **Settlement runs · Recon waterfall · Exceptions** — the batch story, the completeness waterfall, and the reason-coded exception queue (`match_status` / `resolution_type` / `exception_reason`, with delta and a suggested action per item).
 - **Agent workspace** — pick a bank credit and *watch the agent investigate live* (SSE): tool calls → candidate scoring to the paisa → finding → the verifier's re-derivation → the governor's decision → the decision-journey timeline → one-click **journal entry**.
 - **Scenario lab** — generate a fresh workload at any difficulty and stress-test cold; the number that must stay zero is *incorrect resolutions*.
-- **Evaluation · Architecture study · Benchmark matrix · Safety guardrail · Pattern memory** — the evidence pages behind every claim in �section 6.
+- **Evaluation · Architecture study · Benchmark matrix · Safety guardrail · Pattern memory** — the evidence pages behind every claim in �section 6.
 - **What-if simulator · Governor** — tune the policy and see the before/after and its safety cost before committing; controls are finance-team owned.
 - **Data** — reconcile a bundled sample or upload your own five source CSVs.
 
@@ -362,7 +424,7 @@ A Python-only single-page control room (FastAPI + static HTML, no build step), d
 Scope discipline is a design signal too. We were offered adjacent features and declined the ones that dilute the thesis:
 
 - **No cash-flow forecasting.** It's *prediction*, not *verification* — and the entire premise here is that verification is the bottleneck. Forecasting would be a second, weaker product bolted on.
-- **No generic RAG, graph database, or six-agent swarm.** Each adds surface area and subtracts focus; �section 6.2 shows the swarm actively loses. Depth beats feature count.
+- **No generic RAG, graph database, or six-agent swarm.** Each adds surface area and subtracts focus; �section 6.2 shows the swarm actively loses. Depth beats feature count.
 - **No LLM anywhere near the ledger.** The model investigates and hypothesizes. It never decides whether arithmetic is correct, never overrides policy, never writes to the books. That boundary is the product.
 
 The two adjacent Track-4 directions we *did* add — a **Settlement Q&A agent** and a **Tax-line matcher** — both reuse the same engine and data and answer over the *already-reconciled, verified* state. They extend the core; they don't distract from it.
@@ -371,6 +433,7 @@ The two adjacent Track-4 directions we *did* add — a **Settlement Q&A agent** 
 
 ## 10. Limitations & honesty
 
+- **The LLM is not necessary for accuracy on realistic data — and we say so.** A deterministic candidate searcher recovers the hard cases with zero wrong matches (Section 6.7), so we ship it and hold the LLM for the adversarial frontier (out-of-window drift, un-disambiguable collisions) where deterministic search measurably runs out. If you were hoping for "the LLM cracked reconciliation," this project deliberately disappoints you — the honest result is that the *architecture*, not the model, is what earns trust.
 - **Human-queue precision is 86.5%, not 100%,** because the governor holds 7 correctly-matched hero credits below the 0.95 confidence bar for human review. This is controlled autonomy behaving correctly — escalating when less certain — reported rather than hidden.
 - **Reserve *release* is modeled structurally but not implemented** (it's a cross-cycle temporal dependency); the withheld reserve is emitted as a labeled line with a `reserve_release` hook, so the stretch slots in without a refactor.
 - **Cloud deployment is the one open item.** Everything runs locally, reproducibly, today; the Cloud Run / Vertex / Secret Manager deployment is the remaining bonus.

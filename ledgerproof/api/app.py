@@ -133,6 +133,14 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"no reconciled item '{item_id}'")
         return j
 
+    @app.get("/api/necessity")
+    def necessity() -> dict:
+        return svc().necessity()
+
+    @app.get("/api/dataset-card")
+    def dataset_card() -> dict:
+        return svc().dataset_card()
+
     @app.get("/api/matrix")
     def matrix() -> dict:
         path = REPO_ROOT / "docs" / "results_matrix.json"

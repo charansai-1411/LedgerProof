@@ -388,6 +388,21 @@ class Generator:
                 raise AssertionError(
                     f"settlement {s.settlement_id} net {net_by_settlement[s.settlement_id]} != amount {s.amount}"
                 )
+        # 2b. financial conservation, checked at the SETTLEMENT HEADER independently of the net==rows
+        #     check above: gross paid in == net paid out + every deduction. If this and (2) both hold,
+        #     the books conserve money end to end and no deduction was silently invented or dropped.
+        gross_by_settlement: dict[str, int] = defaultdict(int)
+        refund_by_settlement: dict[str, int] = defaultdict(int)
+        for r in ds.report_rows:
+            gross_by_settlement[r.settlement_id] += r.gross_amount
+            refund_by_settlement[r.settlement_id] += r.refund_deduction
+        for s in ds.settlements:
+            outflow = (s.amount + s.fees + s.tax + s.tds + s.reserve_held
+                       + refund_by_settlement[s.settlement_id])
+            if gross_by_settlement[s.settlement_id] != outflow:
+                raise AssertionError(
+                    f"conservation broken at {s.settlement_id}: gross "
+                    f"{gross_by_settlement[s.settlement_id]} != net+fees+tax+tds+reserve+refunds {outflow}")
         # 3. clean bank credit amount == matched settlement amount
         amount_by_settlement = {s.settlement_id: s.amount for s in ds.settlements}
         for bc in ds.bank_credits:

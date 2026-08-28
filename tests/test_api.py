@@ -267,6 +267,77 @@ def test_policy_version_stamped(client):
     assert rec.to_audit()["policy_version"] == "v2"
 
 
+def test_necessity_benchmark(client):
+    """The honest self-attack: deterministic search does the work; the verifier catches an
+    aggressive proposer's wrong matches (with population n on every number)."""
+    r = client.get("/api/necessity").json()
+    assert r["graded"] is True
+    # deterministic candidate search already recovers the matchable credits, with zero wrong
+    assert r["decomposition"]["final_matchable_recall"] >= 0.9
+    assert r["decomposition"]["final_false_match_rate"] == 0.0
+    assert r["decomposition"]["n_matchable"] > 0  # never a percentage without a population
+    # the verifier's value is demonstrated against the aggressive 'greedy' proposer
+    g = r["verifier_work"]["greedy"]
+    assert g["wrong_proposed"] > 0                       # greedy really does propose wrong matches
+    assert g["wrong_rejected_by_verifier"] == g["wrong_proposed"]  # the verifier catches every one
+    assert g["final_false_matches"] == 0
+    assert g["proposal_accuracy"] < 1.0                 # and it is genuinely less accurate than final
+    assert r["candidate_reachability"]["recall"] <= 1.0 and r["conclusion"]
+
+
+def test_dataset_card(client):
+    c = client.get("/api/dataset-card").json()
+    assert c["available"] is True and c["ground_truth_isolated"] is True
+    assert c["injected_breaks"] and all("rate_pct" in b for b in c["injected_breaks"])
+
+
+def test_handcrafted_adversarial_no_false_match():
+    """Anti-circularity: cases authored BY HAND, outside the generator's sampling — a same-amount
+    same-day collision, a truncated-UTR searchable credit, and a true orphan. The system must match
+    the resolvable ones, OPEN the ambiguous/orphan ones, and never assert a wrong match."""
+    from ledgerproof.agent.grader import grade
+    from ledgerproof.agent.heuristic import HeuristicAgentModel
+    from ledgerproof.agent.loader import SeamBSources
+    from ledgerproof.agent.tools import SeamBToolbox
+    from ledgerproof.generator.models import BankCredit, Settlement, SettlementReportRow
+
+    def setl(sid, utr, amt):
+        return Settlement(sid, utr, amt, 0, 0, 0, None, "processed", "2026-01-10")
+
+    def row(sid, amt):
+        return SettlementReportRow(sid, "pay_" + sid, "ord_" + sid, amt, 0, 0, 0, amt)
+
+    settlements = [setl("S1", "AAAAAAAA11111111", 600000), setl("S2", "BBBBBBBB22222222", 450000),
+                   setl("S3", "CCCCCCCC33333333", 450000), setl("S4", "DDDDDDDD44444444", 275000)]
+    rows = [row("S1", 600000), row("S2", 450000), row("S3", 450000), row("S4", 275000)]
+    credits = [
+        BankCredit("B_clean", "AAAAAAAA11111111", "2026-01-10", 600000, "clean"),          # → S1
+        BankCredit("B_collide", "XYZ?9999????????", "2026-01-10", 450000, "ambiguous"),    # S2==S3 → open
+        BankCredit("B_orphan", "", "2026-01-10", 999999, "orphan"),                        # → open
+        BankCredit("B_search", "", "2026-01-11", 275000, "missing UTR, drift"),            # → S4 by search
+    ]
+    tools = SeamBToolbox(SeamBSources(settlements, credits, rows))
+    m = HeuristicAgentModel()
+    findings = {c.bank_txn_id: m.investigate(c.bank_txn_id, tools) for c in credits}
+
+    assert findings["B_clean"].matched_settlement_id == "S1"
+    assert findings["B_search"].matched_settlement_id == "S4"     # searched under a missing UTR
+    assert findings["B_collide"].matched_settlement_id is None    # ambiguous → opened, never forced
+    assert findings["B_orphan"].matched_settlement_id is None     # orphan → opened
+
+    gt = {"bank_credits": {
+        "B_clean": {"break_type": "clean", "true_settlement_id": "S1", "difficulty": []},
+        "B_collide": {"break_type": "bank_settlement_match", "true_settlement_id": "S2",
+                      "difficulty": ["same_day_collision"]},
+        "B_orphan": {"break_type": "unexplained", "true_settlement_id": None, "difficulty": []},
+        "B_search": {"break_type": "bank_settlement_match", "true_settlement_id": "S4",
+                     "difficulty": ["utr_missing", "date_drift"]},
+    }}
+    b = grade(list(findings.values()), gt)
+    assert b["false_matches"] == 0          # the cardinal guarantee, on hand-built adversarial data
+    assert b["correct_matches"] == 2
+
+
 def test_memory_endpoint(client):
     m = client.get("/api/memory").json()
     assert m["known_pattern_hits"] > 0

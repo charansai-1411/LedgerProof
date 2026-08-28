@@ -597,6 +597,28 @@ class ReconService:
                     "queued for a human or quarantined — nothing is ever force-matched.",
         }
 
+    # ---- AI necessity benchmark + honest metric decomposition ----------------
+    def necessity(self) -> dict:
+        from ..eval.necessity import necessity_report
+        return necessity_report(self.data_dir)
+
+    def dataset_card(self) -> dict:
+        """The injected break composition, straight from the run manifest — so the reader can see
+        exactly what was generated, independent of how the matcher performed."""
+        import json as _json
+        mp = self.data_dir / "manifest.json"
+        if not mp.exists():
+            return {"available": False}
+        m = _json.loads(mp.read_text(encoding="utf-8"))
+        exc = m.get("exception_counts", {})
+        n = m.get("n_payments") or 1
+        rows = [{"break": k, "count": v, "rate_pct": round(v * 100 / n, 2)}
+                for k, v in sorted(exc.items(), key=lambda kv: -kv[1])]
+        return {"available": True, "dataset": self.data_dir.name, "seed": m.get("seed"),
+                "n_payments": m.get("n_payments"), "counts": m.get("counts", {}),
+                "injected_breaks": rows, "has_ground_truth": self.has_ground_truth,
+                "ground_truth_isolated": True}
+
     def sample_payment_ids(self, n: int = 8) -> list[str]:
         return list(self._pay.keys())[:n]
 
