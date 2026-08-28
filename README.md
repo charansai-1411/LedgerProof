@@ -8,7 +8,7 @@
 
 **Deterministic code proves the books. A tool-using agent investigates only what the code cannot explain. A deterministic verifier re-derives every finding before it can touch the ledger.**
 
-`94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs`
+`94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs` · `~67% less exception-investigation time at 100% auto-resolution precision`
 
 </div>
 
@@ -243,7 +243,7 @@ The question that justifies the whole AI component: *does the agent actually rec
 | **False-match rate** | **0.0** | **0.0** |
 | Unexplained credits correctly left open | — | **45/45** |
 
-The search-and-verify layer lifts the hard residue from **84.1% to 100%** and adds **zero** false matches. Populations, so the percentages mean something: the held-out bank-credit set is **n = 89** — 30 clean-UTR, **14 hero** (garbled/missing UTR + drift + collision), and 45 true orphans — of which **44 are matchable**; the 100% is 44/44, the hero 100% is 14/14, and the 0 false matches are over 44 asserted matches. Every break type — timing, compound/refund offset, bank-settlement, escalated-unexplained — reconciles at **100%** recall on this set. *(This "agent" is the deterministic searcher; whether it needed to be an LLM is exactly the question Section 6.7 answers — it did not.)*
+The search-and-verify layer lifts the hard residue from **84.1% to 100%** and adds **zero** false matches. Populations, so the percentages mean something: the held-out bank-credit set is **n = 89** — 30 clean-UTR, **14 hero** (garbled/missing UTR + drift + collision), and 45 true orphans — of which **44 are matchable**; the 100% is 44/44, the hero 100% is 14/14, and the 0 false matches are over 44 asserted matches. (And "0 false" never travels alone — Section 6.10 reports it with coverage 84.1% and precision 100%, so it can't read as "refuses everything hard.") Every break type — timing, compound/refund offset, bank-settlement, escalated-unexplained — reconciles at **100%** recall on this set. *(This "agent" is the deterministic searcher; whether it needed to be an LLM is exactly the question Section 6.7 answers — it did not.)*
 
 ### 6.2 Single vs multi-agent — the experiment we let speak
 
@@ -397,6 +397,52 @@ This is **not a human-subjects study** — it is the measured record-reduction s
 
 This is the agent's natural role, stated plainly: **it does not need to beat deterministic code at matching; it makes exception handling dramatically faster at equal accuracy.** That is a value an LLM can genuinely add on top of a deterministic core — evidence-gathering and narration a human would otherwise do by hand — without ever being trusted to decide the match. *(`GET /api/human-benchmark` recomputes this on any dataset.)*
 
+### 6.10 Business value: what the finance team stops doing
+
+Everything above proves *intelligence*. This proves *value* — and it is what a controller actually asks: **how many exceptions did you clear, what remains, and how much of my team's work did you remove?**
+
+**"Zero false matches" never travels alone.** A zero false-match rate with nothing beside it invites the fair suspicion *"the verifier just refuses everything hard."* So we always report it with its counterweights — coverage, precision, and the human-review rate (held-out, `GET /api/outcomes`):
+
+| The trust quartet | |
+|---|--:|
+| False-match rate | **0.00%** |
+| Auto-resolution **precision** | **100%** (37/37 correct) |
+| Auto-resolution **coverage** of matchable credits | **84.1%** (37/44) |
+| Human-review items | 352 |
+
+The 84.1% coverage is the number that rebuts "too conservative": the system *does* act on the hard cases — it auto-resolves 84% of the matchable bank-credit residue — it just never acts wrongly. Zero false at 84% coverage is credible; zero false at 0% coverage would be a refusal machine.
+
+**The outcome-first run summary** (the dashboard's first screen, before any throughput metric):
+
+```
+THIS RUN — held-out
+  5,000 records → 4,737 reconciled (94.7%) → 52 investigated → 352 need review
+  ₹12.54 Cr processed        ₹3.01 Cr exceptions outstanding
+```
+
+**Manual work avoided — derived from the human-investigation model (6.9), not invented.** Scoped to the bank-credit exception queue where the model is measured:
+
+```
+Bank-credit exceptions ............... 52
+Investigation without LedgerProof .... 3.28 hours   (52 × 3.8 min, unassisted)
+Investigation with LedgerProof ....... 1.08 hours   (52 × 1.2 min, agent-assisted)
+Finance-team workload reduction ...... 67.1%
+```
+
+Every figure here is derived from the stated per-record constants in 6.9 (change them, and this moves); none is a hand-typed "hours saved." That is the business story, kept honest: **a two-thirds cut in exception-investigation time, at zero false matches and 100% auto-resolution precision.**
+
+**And the human queue is a workspace, not a dead end.** Every item the system cannot auto-resolve arrives *decision-ready* (`GET /api/human-queue`, the **Review queue** page) — the point of 6.9 made operational:
+
+```
+₹18,02,340.81   bank_m8p7rkux · 2026-09-09
+  Top candidate:        setl_q5qkmb8f  (confidence 0.74)
+  Why not auto-resolved: confidence below the 0.95 threshold
+  Evidence already checked: ✓ date window  ✓ amount  ✓ UTR  ✓ settlement cycle  · 9 candidates searched
+  Human decides:  [ setl_q5qkmb8f ]  [ none of these ]
+```
+
+The agent already did the search and the evidence-gathering; the human makes the *judgment* — which is the one thing we never automate. That is the difference between "AI couldn't solve it, here's an error" and "here is everything you need to decide in ten seconds."
+
 ## 7. Reproduce every number
 
 Plain `pip` — no build step, no `npm`, one command to a running system.
@@ -459,8 +505,8 @@ python -m ledgerproof.metrics --data data/public1 --enable-auto --allow bank_set
 
 A Python-only single-page control room (FastAPI + static HTML, no build step), designed to read like finance-operations software, not a chatbot. Sidebar over the live pipeline:
 
-- **Overview** — KPI cards led by the cardinal false-match rate, plus the "right tool in the right place" routing panel and the Finance Copilot.
-- **Settlement runs · Recon waterfall · Exceptions** — the batch story, the completeness waterfall, and the reason-coded exception queue (`match_status` / `resolution_type` / `exception_reason`, with delta and a suggested action per item).
+- **Overview** — outcome-first, the controller's screen before any engineering metric: *5,000 records → 4,737 reconciled → 52 investigated → 352 need review*, the money processed and outstanding, the trust quartet (false-match / precision / coverage / human-review), the derived manual-work-avoided figure, and "what needs your attention now." The engineering detail (routing, throughput, Copilot) sits below it.
+- **Settlement runs · Recon waterfall · Exceptions · Review queue** — the batch story, the completeness waterfall, the reason-coded exception queue (`match_status` / `resolution_type` / `exception_reason`, with delta and a suggested action), and the **decision-ready human queue** (top candidate, why-not-auto, evidence already checked, explicit options) that makes the human fast even when the system won't resolve the case.
 - **Agent workspace** — pick a bank credit and *watch the agent investigate live* (SSE): tool calls → candidate scoring to the paisa → finding → the verifier's re-derivation → the governor's decision → the decision-journey timeline → one-click **journal entry**.
 - **Scenario lab** — generate a fresh workload at any difficulty and stress-test cold; the number that must stay zero is *incorrect resolutions*.
 - **Evaluation · Architecture study · Benchmark matrix · Safety guardrail · Pattern memory** — the evidence pages behind every claim in �section 6.

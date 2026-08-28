@@ -145,6 +145,14 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def human_benchmark() -> dict:
         return svc().human_benchmark()
 
+    @app.get("/api/outcomes")
+    def outcomes() -> dict:
+        return svc().outcomes()
+
+    @app.get("/api/human-queue")
+    def human_queue() -> list[dict]:
+        return svc().human_queue()
+
     @app.get("/api/matrix")
     def matrix() -> dict:
         path = REPO_ROOT / "docs" / "results_matrix.json"

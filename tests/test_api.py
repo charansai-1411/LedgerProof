@@ -291,6 +291,38 @@ def test_necessity_benchmark(client):
     assert e["det_search_resolved_matchable"] + e["agent_marginal_opportunity"] >= r["population"]["matchable"] - 1
 
 
+def test_outcomes_report_the_full_quartet(client):
+    """'0 false matches' must travel with coverage + precision + human-review, or it reads as
+    'refuses everything hard'."""
+    o = client.get("/api/outcomes").json()
+    q = o["trust_quartet"]
+    for k in ("false_match_rate", "auto_resolution_precision",
+              "auto_resolution_coverage_of_matchable", "human_review_items"):
+        assert k in q
+    assert q["false_match_rate"] == 0.0
+    # coverage is real, not a refuse-everything 0 — the verifier is not merely conservative
+    assert q["auto_resolution_coverage_of_matchable"] > 0.5
+    assert q["auto_resolution_precision"] == 1.0
+    r = o["run"]
+    assert r["auto_reconciled"] > 0 and r["auto_reconciled_pct"] > 90
+    assert o["money"]["gross_processed_paise"] > 0
+    # business value is derived from the stated model, not invented
+    biz = o["manual_work_avoided"]
+    assert biz["workload_reduction_pct"] > 0 and "human-investigation model" in biz["basis"]
+
+
+def test_human_queue_cards_are_decision_ready(client):
+    """A human-review item is not a dead end: it carries a top candidate, why-not-auto, the evidence
+    already checked, and explicit options — so the human decides fast."""
+    q = client.get("/api/human-queue").json()
+    assert q
+    card = q[0]
+    for k in ("id", "amount", "why_not_auto", "evidence_checked", "options"):
+        assert k in card
+    assert card["evidence_checked"]["candidates_searched"] >= 0
+    assert card["options"][-1] == "none of these"   # refusing is always an explicit choice
+
+
 def test_human_investigation_benchmark(client):
     """The agent's honest value: effort reduction at accuracy parity, measured proxies separated
     from the modeled time estimate."""

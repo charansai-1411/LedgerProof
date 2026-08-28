@@ -606,6 +606,113 @@ class ReconService:
         from ..eval.human_bench import human_investigation_report
         return human_investigation_report(self.data_dir)
 
+    def outcomes(self) -> dict:
+        """The outcome-first, CFO-facing view: what cleared, what remains, what needs attention, the
+        money, and — the honest counterweight to '0 false matches' — auto-resolution PRECISION and
+        COVERAGE and the human-review rate reported together, so 'zero false' cannot read as 'refuses
+        everything hard'. Plus the derived manual-work-avoided figure from the human-investigation model."""
+        recon = SeamAEngine(FeeConfig.load()).reconcile(self._eng_sources)
+        bench = GovernorConfig(enabled=True, min_confidence=0.95, allowlist=["bank_settlement_match"],
+                               min_drift_days=self.policy.min_drift_days, max_drift_days=self.policy.max_drift_days)
+        recs = run_pipeline(self.data_dir, self.model, bench)
+        clean = [r for r in recs if r.finding.matched_settlement_id and "exact_utr" in r.finding.match_basis]
+        autos = [r for r in recs if r.governor.decision == DECISION_AUTO]
+        humans = [r for r in recs if r.governor.decision == DECISION_HUMAN]
+        non_clean = [r for r in recs if r not in clean]
+
+        seen = {p.payment_id for p in self._eng_sources.payments}
+        gross = sum(self._pay[p].captured_amount for p in seen)
+        auto_reconciled = len(recon.matched) + len(autos)
+        autos_investigated = [r for r in non_clean if r.governor.decision == DECISION_AUTO]
+        exceptions = len(recon.exceptions) + len(non_clean)
+
+        # coverage/precision quartet — measured against ground truth where available
+        quartet = {"false_match_rate": None, "auto_resolution_precision": None,
+                   "auto_resolution_coverage_of_matchable": None, "human_review_items": len(humans) + len(recon.exceptions)}
+        if self.has_ground_truth:
+            from ..engine.grader import load_ground_truth
+            gt = load_ground_truth(self.data_dir)["bank_credits"]
+            matchable = [b for b, v in gt.items() if v["break_type"] in ("clean", "bank_settlement_match")]
+            wrong = sum(1 for r in autos
+                        if gt.get(r.finding.bank_txn_id, {}).get("true_settlement_id") != r.finding.matched_settlement_id)
+            quartet = {
+                "false_match_rate": 0.0 if not wrong else round(wrong / len(autos), 6),
+                "auto_resolution_precision": round((len(autos) - wrong) / len(autos), 4) if autos else 1.0,
+                "auto_resolution_coverage_of_matchable": round(len(autos) / len(matchable), 4) if matchable else 0.0,
+                "human_review_items": len(humans) + len(recon.exceptions),
+            }
+
+        exc_amt = sum(self._pay[e.payment_id].captured_amount
+                      for e in recon.exceptions if e.payment_id in self._pay) \
+            + sum(self._credit[r.finding.bank_txn_id].credit_amount for r in humans)
+
+        hb = self.human_benchmark()  # derive manual-work-avoided from the stated investigation model
+        biz = None
+        if hb.get("graded") and hb.get("investigated"):
+            n = hb["investigated"]
+            un = hb["modeled_time"]["minutes_per_case"]["unassisted"]
+            asst = hb["modeled_time"]["minutes_per_case"]["assisted"]
+            base_h = round(n * un / 60, 2)
+            lp_h = round(n * asst / 60, 2)
+            biz = {"scope": "bank-credit exception queue (Seam B)", "exceptions_investigated": n,
+                   "baseline_investigation_hours": base_h, "ledgerproof_investigation_hours": lp_h,
+                   "workload_reduction_pct": round((1 - lp_h / base_h) * 100, 1) if base_h else 0.0,
+                   "basis": "derived from the human-investigation model (Section 6.9); constants stated there"}
+
+        return {
+            "dataset": self.data_dir.name, "graded": self.has_ground_truth,
+            "run": {"records": len(seen), "auto_reconciled": auto_reconciled,
+                    "auto_reconciled_pct": round(auto_reconciled * 100 / len(seen), 1) if seen else 0.0,
+                    "investigated": len(non_clean), "auto_resolved_exceptions": len(autos_investigated),
+                    "pending_review": len(humans) + len(recon.exceptions)},
+            "money": {"gross_processed_paise": gross, "exceptions_outstanding_paise": exc_amt},
+            "trust_quartet": quartet,
+            "manual_work_avoided": biz,
+        }
+
+    def human_queue(self, limit: int = 20) -> list[dict]:
+        """Decision-ready cards for the human queue — the point is to make the human FAST even when the
+        system can't resolve the case: the top candidate, why it wasn't auto-resolved, the evidence
+        already checked, and the explicit choices. Not a terminal 'agent gave up' bucket."""
+        from ..verifier.governor import Governor
+        from ..verifier.verifier import SeamBVerifier
+
+        tools = SeamBToolbox(load_seam_b(self.data_dir))
+        verifier = SeamBVerifier(self.policy.min_drift_days, self.policy.max_drift_days)
+        governor = Governor(self.policy)
+        claimed = self._claimed(tools)
+        out: list[dict] = []
+        for bid in tools.all_bank_txn_ids():
+            bc = tools.get_bank_credit(bid)
+            f = HeuristicAgentModel().investigate(bid, tools)
+            if f.matched_settlement_id and "exact_utr" in f.match_basis:
+                continue  # clean, resolved, not a human item
+            v = verifier.verify(f, tools, claimed)
+            g = governor.decide(f, v)
+            if g.decision == DECISION_AUTO:
+                continue  # auto-resolved, off the human's plate
+            window = tools.get_settlements_in_window(bc.value_date, 3, 1)
+            options = sorted({s.settlement_id for s in window
+                              if abs(s.amount - bc.credit_amount) <= max(1, bc.credit_amount // 100)}
+                             | ({f.matched_settlement_id} if f.matched_settlement_id else set()))
+            why = ("two or more settlements are equally plausible" if len(options) > 1
+                   else ("no settlement in the window reconciles to the amount" if not f.matched_settlement_id
+                         else f"confidence {f.confidence:.2f} below the auto-resolve threshold"))
+            out.append({
+                "id": bid, "amount": bc.credit_amount, "value_date": bc.value_date,
+                "top_candidate": f.matched_settlement_id, "why_not_auto": why,
+                "evidence_checked": {
+                    "date_window": True, "amount_match": bool(f.matched_settlement_id),
+                    "utr": bool(bc.utr), "settlement_cycle": True,
+                    "candidates_searched": len(window),
+                },
+                "options": options + ["none of these"],
+                "confidence": round(f.confidence, 2) if f.matched_settlement_id else None,
+            })
+            if len(out) >= limit:
+                break
+        return out
+
     def dataset_card(self) -> dict:
         """The injected break composition, straight from the run manifest — so the reader can see
         exactly what was generated, independent of how the matcher performed."""
