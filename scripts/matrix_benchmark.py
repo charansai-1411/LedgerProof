@@ -119,10 +119,24 @@ def main() -> None:
         "reasoning hops and cost — this is a single-expertise-domain workload, so specialization "
         "doesn't pay. Chosen: a single tool-using investigator gated by a deterministic verifier."
     )
+    import platform
+    methodology = {
+        "machine": f"{platform.system()} {platform.machine()}, Python {platform.python_version()}, "
+                   "single process, SQLite working DB",
+        "agent": "deterministic heuristic searcher — 0 real LLM calls; calls/cost are the MODELED "
+                 "per-case counts a Gemini path would incur",
+        "cache": "OFF (cold) — the pattern library is not in the measurement path",
+        "throughput_meaning": "data-processing throughput of the deterministic path; an LLM-enabled "
+                              "run is latency-bound on the ~1% of records the agent touches, NOT on "
+                              "this figure",
+        "measured": ["match accuracy", "false-match rate", "LLM-call counts"],
+        "modeled": ["latency", "$ cost (from call counts)"],
+    }
     write_results(rows, conclusion, quick=args.quick)
     (REPO_ROOT / "docs" / "results_matrix.json").write_text(
         json.dumps({"generated": _dt.date.today().isoformat(), "quick": args.quick,
-                    "rows": rows, "conclusion": conclusion}, indent=2), encoding="utf-8")
+                    "methodology": methodology, "rows": rows, "conclusion": conclusion}, indent=2),
+        encoding="utf-8")
     print(f"\n[matrix] wrote {REPO_ROOT / 'docs' / 'RESULTS.md'} and results_matrix.json")
 
 

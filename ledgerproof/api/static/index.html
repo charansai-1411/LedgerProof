@@ -248,7 +248,7 @@
     <div class="nav" data-v="architecture"><span class="ic">⑃</span> Architecture study</div>
     <div class="nav" data-v="benchmark"><span class="ic">▦</span> Benchmark matrix</div>
     <div class="nav" data-v="guardrail"><span class="ic">⛨</span> Safety guardrail</div>
-    <div class="nav" data-v="memory"><span class="ic">◈</span> Pattern memory</div>
+    <div class="nav" data-v="memory"><span class="ic">◈</span> Pattern library</div>
     <div class="grp">Records</div>
     <div class="nav" data-v="audit"><span class="ic">🗎</span> Audit</div>
     <div class="grp">System</div>
@@ -272,7 +272,7 @@
 
       <h2 class="sec">Finance copilot</h2>
       <div class="panelbox" style="max-width:none">
-        <div class="ask"><input id="qa-q" placeholder="Ask about this reconciliation run…" style="flex:1;min-width:260px"/><button class="btn primary" id="qa-go">Ask</button></div>
+        <div class="ask"><input id="qa-q" placeholder="Ask, or paste a setl_… / bank_… id to drill in…" style="flex:1;min-width:260px"/><button class="btn primary" id="qa-go">Ask</button></div>
         <div class="exmpl" id="qa-ex"></div>
         <div class="answer" id="qa-a"></div>
       </div>
@@ -346,7 +346,7 @@
 
     <!-- PATTERN MEMORY -->
     <section class="view" id="v-memory">
-      <div class="phead"><div><h1>Pattern Memory</h1><div class="sub">The agent investigates a pattern once; the verifier-gated cache resolves every repeat — without another LLM call.</div></div></div>
+      <div class="phead"><div><h1>Verified Pattern Library</h1><div class="sub">Honest name: this is a verifier-gated <b>cache</b>, not model learning. A pattern the agent resolves and the verifier confirms becomes a reusable deterministic shortcut; a later identical break re-applies it — and is <b>still re-derived in code</b>.</div></div></div>
       <div id="mem-body"><div class="empty">loading…</div></div>
     </section>
 
@@ -605,11 +605,11 @@ async function loadMemory(){
     <h2 class="sec">Average resolution time</h2>
     <div class="card" style="max-width:420px;padding:16px 18px"><div class="timeimp"><span class="from">${m.avg_time_without_cache_s.toFixed(1)}s</span><span class="arr">→</span><span class="to">${m.avg_time_with_cache_s.toFixed(2)}s</span></div>
       <p class="muted" style="font-size:12px;margin-top:8px">${m.note}</p></div>
-    <h2 class="sec">Learned patterns</h2>
-    <div class="card" style="max-width:640px"><table><thead><tr><th>Pattern</th><th>Strategy</th><th class="num">Hits</th></tr></thead><tbody>
+    <h2 class="sec">Verified patterns in the library</h2>
+    <div class="card" style="max-width:640px"><table><thead><tr><th>Pattern key</th><th>Deterministic strategy</th><th class="num">Reuses</th></tr></thead><tbody>
       ${m.patterns.map(p=>`<tr><td class="mono">${p.key.split("|").slice(1).join(" · ")}</td><td class="mono muted">${p.strategy}</td><td class="num">${p.hits}</td></tr>`).join("")}
     </tbody></table></div>
-    <p class="muted" style="margin-top:12px;max-width:640px;font-size:12.5px">Memory proposes; the verifier still re-derives every cache hit against the specific record — so a wrong pattern can never silently propagate. The cache is kept out of the held-out metrics, which run cold.</p>`;
+    <p class="muted" style="margin-top:12px;max-width:640px;font-size:12.5px">This is a <b>cache, not learning</b>: it stores <span class="mono">pattern → verified strategy</span> and re-applies it deterministically. The library proposes; the verifier still re-derives every hit against the specific record, so a wrong entry can never silently propagate. Kept out of the held-out metrics, which run cold.</p>`;
 }
 function cycleRow(c){return `<tr><td class="id">${c.cycle_id}</td><td>${c.date}</td><td class="num">${rsShort(c.gross)}</td><td class="num">${rsShort(c.net)}</td><td><span class="bar"><i style="width:${(c.match_rate*100).toFixed(0)}%"></i></span>${pct(c.match_rate)}</td><td class="num">${c.issues}</td></tr>`;}
 
@@ -650,7 +650,7 @@ async function loadGuardrail(){
 }
 
 /* copilot */
-const QA_EX=["Give me a summary","How many credits are unexplained?","What did the agent auto-resolve?","Total GST this cycle"];
+const QA_EX=["Give me a summary","Show unresolved credits over ₹50,000","How many credits are unexplained?","Total GST this run"];
 function initCopilot(){$("#qa-ex").innerHTML=QA_EX.map(q=>`<a href="#" data-q="${q}">${q}</a>`).join("");
   $$("#qa-ex a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();askQA(a.dataset.q);}));}
 async function askQA(q){q=(q||$("#qa-q").value).trim();if(!q)return;$("#qa-q").value=q;const b=$("#qa-a");b.classList.add("show");b.textContent="…";

@@ -1,0 +1,102 @@
+{
+  "hypothesis": {
+    "H0": "multi-agent gives no meaningful hard-recall improvement over single-agent",
+    "H1": "multi-agent improves hard-case recall enough to justify latency/cost",
+    "meaningful_effect_threshold": 0.02
+  },
+  "method": {
+    "seeds": 5,
+    "n_payments": 2500,
+    "held_constant": [
+      "tools",
+      "verifier",
+      "governor",
+      "ground_truth",
+      "difficulty_mix"
+    ],
+    "varied": "agent architecture only",
+    "wall_seconds": 4.3,
+    "machine": "Windows AMD64, Python 3.11.9",
+    "note": "agent = deterministic heuristic searcher (0 real LLM calls); calls/cost are the MODELED per-case counts an LLM path would incur, not live API calls."
+  },
+  "per_seed": [
+    {
+      "seed": 40101,
+      "single_acc": 0.975,
+      "multi_acc": 0.975,
+      "single_hard": 0.9375,
+      "multi_hard": 0.9375,
+      "single_calls": 1.0,
+      "multi_calls": 2.74,
+      "single_cost": 0.01,
+      "multi_cost": 0.027
+    },
+    {
+      "seed": 40202,
+      "single_acc": 0.9459,
+      "multi_acc": 0.9459,
+      "single_hard": 0.8667,
+      "multi_hard": 0.8667,
+      "single_calls": 1.0,
+      "multi_calls": 2.81,
+      "single_cost": 0.01,
+      "multi_cost": 0.028
+    },
+    {
+      "seed": 40303,
+      "single_acc": 0.9268,
+      "multi_acc": 0.9268,
+      "single_hard": 0.8125,
+      "multi_hard": 0.8125,
+      "single_calls": 1.0,
+      "multi_calls": 2.79,
+      "single_cost": 0.01,
+      "multi_cost": 0.028
+    },
+    {
+      "seed": 40404,
+      "single_acc": 0.8718,
+      "multi_acc": 0.8718,
+      "single_hard": 0.6875,
+      "multi_hard": 0.6875,
+      "single_calls": 1.0,
+      "multi_calls": 2.89,
+      "single_cost": 0.01,
+      "multi_cost": 0.029
+    },
+    {
+      "seed": 40505,
+      "single_acc": 0.9744,
+      "multi_acc": 0.9744,
+      "single_hard": 0.9375,
+      "multi_hard": 0.9375,
+      "single_calls": 1.0,
+      "multi_calls": 2.75,
+      "single_cost": 0.01,
+      "multi_cost": 0.028
+    }
+  ],
+  "aggregate": {
+    "single_accuracy": {
+      "mean": 0.9388,
+      "std": 0.0381
+    },
+    "multi_accuracy": {
+      "mean": 0.9388,
+      "std": 0.0381
+    },
+    "single_hard_recall": {
+      "mean": 0.8483,
+      "std": 0.0932
+    },
+    "multi_hard_recall": {
+      "mean": 0.8483,
+      "std": 0.0932
+    },
+    "mean_hard_recall_delta": 0.0,
+    "mean_accuracy_delta": 0.0,
+    "mean_cost_ratio": 2.8
+  },
+  "decision": "fail_to_reject_H0",
+  "verdict": "Across 5 seeds (n=2,500 each), multi-agent hard-case recall changed by a mean of +0.000 vs single-agent (accuracy +0.000), while costing ~2.8x the LLM calls per case. We FAIL TO REJECT H0: the mean change (+0.000) is below the 0.02 meaningful-effect threshold, so specialization does not justify its cost on this single-expertise-domain workload. Chosen: the single investigator."
+}
