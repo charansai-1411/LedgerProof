@@ -10,6 +10,10 @@
 
 `94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs` · `~67% less exception-investigation time at 100% auto-resolution precision` · `8/8 injected faults contained → 0 wrong financial actions`
 
+### ▶ Live demo — [ledgerproof-1020004477951.asia-south1.run.app](https://ledgerproof-1020004477951.asia-south1.run.app)
+
+*Deployed on Google Cloud Run (Mumbai). Open the dashboard, switch datasets, or press "Break the system" on the Fault injection page.*
+
 </div>
 
 <p align="center">
@@ -654,7 +658,7 @@ Two capabilities reuse the same engine and reconciled state rather than bolting 
 - **The genuinely AI-requiring class we did not manufacture.** Our hard cases are *key-mess* (garbled/missing UTR, date drift), which deterministic search solves. The class that would truly need open-ended investigation is *amount-relationship* mess — a bank credit that equals a settlement's net plus an un-netted refund minus a reserve, with no exact single-settlement match. We chose not to inject it solely to justify the agent; naming it honestly is better than gaming the benchmark.
 - **Human-queue precision is 86.5%, not 100%,** because the governor holds 7 correctly-matched hero credits below the 0.95 confidence bar for human review. This is controlled autonomy behaving correctly — escalating when less certain — reported rather than hidden.
 - **Reserve *release* is modeled structurally but not implemented** (it's a cross-cycle temporal dependency); the withheld reserve is emitted as a labeled line with a `reserve_release` hook, so the stretch slots in without a refactor.
-- **Cloud deployment is containerized and one command away.** A `Dockerfile` builds a self-contained Cloud Run image (datasets generated at build time from a seed), and [`docs/DEPLOY.md`](docs/DEPLOY.md) has the single `gcloud run deploy --source .` command plus the optional Vertex/Gemini wiring. The only step not scripted is running it against a billed GCP project.
+- **Cloud deployment is done — [live on Cloud Run](https://ledgerproof-1020004477951.asia-south1.run.app).** A `Dockerfile` builds a self-contained image (datasets generated at build time from a seed), deployed to Google Cloud Run in `asia-south1`; [`docs/DEPLOY.md`](docs/DEPLOY.md) has the one-command redeploy and the optional Vertex/Gemini wiring. The live demo runs the deterministic path (no API keys); the Gemini path is a documented add-on.
 - **Fee rates are plausible, configurable examples** in `configs/fees.yaml` — the *shape* is real Indian-payments structure; they are not represented as official Razorpay pricing.
 
 ---
