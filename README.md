@@ -8,7 +8,7 @@
 
 **Deterministic code proves the books. A tool-using agent investigates only what the code cannot explain. A deterministic verifier re-derives every finding before it can touch the ledger.**
 
-`94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs` · `~67% less exception-investigation time at 100% auto-resolution precision`
+`94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs` · `~67% less exception-investigation time at 100% auto-resolution precision` · `8/8 injected faults contained → 0 wrong financial actions`
 
 </div>
 
@@ -29,7 +29,7 @@ This document explains every design decision, why the obvious-seeming alternativ
 
 **What the AI actually buys you — measured.** The agent's value is not matching accuracy; it is **operational**. It cuts human exception-investigation work **6.7×** — a human audits one pre-searched, pre-verified finding instead of hunting through ~7 candidate settlements per exception (Section 6.9) — at accuracy parity and zero false matches, and it **recovers the adversarial residue a fixed-rule searcher can't reach** (Section 6.7). It is a governed **escalation layer** on a deterministic core, and that value grows precisely as production data drifts from the rules' assumptions. That is where an LLM belongs in a payments system.
 
-**And the honesty that earns that framing.** We then asked the hard question a senior reviewer would — does this problem *need* an LLM for matching *accuracy*? — and answered it with a measurement, not a slogan: on realistic data it does **not**. A deterministic searcher resolves the matchable credits with zero wrong matches, so that is the **trust anchor we ship** (Section 6.7). The contribution is therefore an architecture — **search → deterministic verify → govern** — in which the searcher can be code today or an LLM tomorrow, because the deterministic verifier makes *any* proposer safe (Section 6.8 shows it catching a proposer wrong half the time), with a population **n** on every percentage. We use AI where it earns its place and say plainly where it does not — which is itself the judgment this track is testing.
+**And the honesty that earns that framing.** We then asked the hard question a senior reviewer would — does this problem *need* an LLM for matching *accuracy*? — and answered it with a measurement, not a slogan: on realistic data it does **not**. A deterministic searcher resolves the matchable credits with zero wrong matches, so that is the **trust anchor we ship** (Section 6.7). The contribution is therefore an architecture — **search → deterministic verify → govern** — in which the searcher can be code today or an LLM tomorrow, because the deterministic verifier makes *any* proposer safe (Section 6.8 shows it catching a proposer wrong half the time), with a population **n** on every percentage. We use AI where it earns its place and say plainly where it does not — which is itself the judgment this track is testing. And the whole thing is **built to fail safe**: a fault-injection harness (Section 4.6) breaks the system eight ways — corrupted UTRs, missing settlements, malformed model output, tool timeouts, verifier failures — and every one is detected, contained, and routed to a human with a tamper-evident audit chain: **8/8 contained, 0 wrong financial actions.** That is the difference between a demo and something that could run in production.
 
 ---
 
@@ -191,7 +191,22 @@ The **What-if simulator** makes this tunable and its cost visible: raising auton
 
 ### 4.5 The audit trail
 
-Every stage appends an immutable, reversible record: the search (candidate counts, strategy), the agent (model, tools called, evidence IDs), the finding (hypothesis, confidence), the verification (each check, pass/fail), the governor decision, the policy version, and the outcome. No hidden chain-of-thought — concise investigation steps and evidence identifiers, the things an auditor actually needs. "Why did the system do this?" always has a complete, replayable answer.
+Every stage appends an immutable, reversible record: the search (candidate counts, strategy), the agent (model, tools called, evidence IDs), the finding (hypothesis, confidence), the verification (each check, pass/fail), the governor decision, the policy version, and the outcome. No hidden chain-of-thought — concise investigation steps and evidence identifiers, the things an auditor actually needs. "Why did the system do this?" always has a complete, replayable answer. And the audit log is **tamper-evident** — a hash chain where altering any past event breaks every hash after it (Section 6.11).
+
+### 4.6 Designed to fail safe — the fault-injection harness
+
+A demo works on the happy path; a payments system is judged on what happens when something breaks. So the architecture has an explicit **"Break the system"** harness (`GET /api/faults`, `ledgerproof/eval/faults.py`) that injects eight failure classes and shows each one contained. The invariant is not *"nothing goes wrong"* — it is that **no fault ever becomes a wrong financial action**:
+
+```
+FAILURE → DETECTED → CONTAINED → FALLBACK → HUMAN REVIEW → AUDIT (hash-chained)
+```
+
+Corrupted UTRs, a settlement id that doesn't exist, two credits claiming one payout, a wrong fee config, a malformed model response (confidence 5.0), a verifier failure, a tool timeout — each is detected by a specific mechanism (schema validation, the verifier's re-derivation, the conflict check, bounded retry) and degrades to *open → human*, never to an unverified auto-resolution. Measured across all eight: **8/8 detected and contained, 0 wrong financial actions, the audit hash-chain intact on every one.** This is the same principle as `search ≠ check`, applied to infrastructure: a proposer — or a tool, or the model itself — is *allowed* to fail, because a deterministic gate stands between any failure and the ledger. Full mechanics and the per-fault table are in Section 6.11.
+
+<p align="center">
+  <img src="docs/images/fault_injection.png" alt="Fault injection page — eight injected failures each detected, contained, and routed to a human, with 0 wrong financial actions and an intact audit hash-chain" width="100%">
+  <br><em>"Break the system": eight fault classes injected, each traced FAILURE → DETECTED → CONTAINED → FALLBACK → HUMAN REVIEW → AUDIT — 0 wrong financial actions, hash-chain intact on every one.</em>
+</p>
 
 ---
 
@@ -491,7 +506,7 @@ The agent already did the search and the evidence-gathering; the human makes the
 
 A payments system is judged less on the happy path than on what happens when something fails. Five deliberate robustness properties, each implemented and tested (not just asserted).
 
-**Fault injection harness** (`GET /api/faults`, the **Fault injection** page — "Break the system"). We inject eight failure classes and show each get **detected → contained → fallback → human review → audited**. The invariant is not "nothing goes wrong"; it is **no fault ever becomes a wrong financial action**:
+**Fault injection harness** — introduced in Section 4.6; here is the full per-fault detail. Each of the eight classes is detected by a specific mechanism and degrades to *open → human*, never to an unverified auto-resolution:
 
 | Injected fault | Detected by | Outcome |
 |---|---|---|
@@ -504,12 +519,7 @@ A payments system is judged less on the happy path than on what happens when som
 | Verifier failure | net does not reconcile | blocked → human |
 | Tool timeout | bounded retry exhausted | investigation incomplete → human |
 
-Measured: **8/8 detected and contained, 0 wrong financial actions, audit hash-chain intact on every one.**
-
-<p align="center">
-  <img src="docs/images/fault_injection.png" alt="Fault injection page — eight injected failures each shown detected, contained, and routed to a human, with 0 wrong financial actions and an intact audit hash-chain" width="100%">
-  <br><em>"Break the system": each injected fault traced FAILURE → DETECTED → CONTAINED → FALLBACK → HUMAN REVIEW → AUDIT, with 0 wrong financial actions and the hash-chain intact on every one.</em>
-</p>
+Measured: **8/8 detected and contained, 0 wrong financial actions, audit hash-chain intact on every one** (the "Break the system" screenshot is in Section 4.6).
 
 **Agent infrastructure resilience** (`ledgerproof/agent/resilience.py`). Two failure modes handled uniformly — *any infra failure degrades to "open, route to human," never to an unverified auto-resolution*:
 
