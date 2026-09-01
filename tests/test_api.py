@@ -323,6 +323,56 @@ def test_human_queue_cards_are_decision_ready(client):
     assert card["options"][-1] == "none of these"   # refusing is always an explicit choice
 
 
+def test_fault_injection_harness(client):
+    """Every injected fault is detected, contained, audited (hash-chain intact), and NONE becomes a
+    wrong financial action."""
+    f = client.get("/api/faults").json()
+    assert f["available"] is True
+    assert f["wrong_financial_actions"] == 0     # the invariant that matters
+    assert f["audit_all_intact"] is True
+    assert f["all_contained"] is True
+    kinds = {r["fault"] for r in f["faults"]}
+    assert {"missing_settlement", "verifier_failure", "tool_timeout", "malformed_agent_response"} <= kinds
+    # a must-block fault must NOT verify (so it can never auto-resolve)
+    for r in f["faults"]:
+        if r["class"] == "must_block":
+            assert r["verified"] is False and r["final"] == "human_review"
+    one = client.get("/api/fault/tool_timeout").json()
+    assert one["steps"][0]["stage"] == "FAILURE INJECTED" and one["steps"][-1]["stage"] == "AUDIT"
+    assert client.get("/api/fault/nonexistent").status_code == 400
+
+
+def test_idempotent_resolution_writes(client):
+    """Submitting the same run twice writes zero duplicate resolutions."""
+    r = client.get("/api/idempotency").json()
+    assert r["resolutions_written_pass1"] >= 0
+    assert r["resolutions_written_pass2"] == 0        # the second pass is a no-op
+    assert r["duplicates_suppressed"] == r["resolutions_written_pass1"]
+    assert r["idempotent"] is True
+
+
+def test_rule_inspector(client):
+    """A decision exposes the exact policy rules that governed it, with ids and sources."""
+    cat = client.get("/api/rules").json()
+    ids = {r["id"] for r in cat}
+    assert {"R-021", "R-044", "R-071", "R-080"} <= ids
+    creds = client.get("/api/credits").json()
+    bid = creds[0]["bank_txn_id"]
+    ri = client.get(f"/api/rules/{bid}").json()
+    assert ri["available"] is True and ri["rules"]
+    assert all("source" in r for r in ri["rules"])
+    assert "R-080" in {r["id"] for r in ri["rules"]}   # false-match-is-cardinal always in force
+
+
+def test_credit_detail_has_hashchained_audit(client):
+    creds = client.get("/api/credits").json()
+    bid = next((x["bank_txn_id"] for x in creds if x["kind"] != "clean UTR"), creds[0]["bank_txn_id"])
+    d = client.get(f"/api/exception/{bid}").json()
+    assert d["audit_integrity"]["intact"] is True
+    assert d["audit_chain"] and "event_hash" in d["audit_chain"][0]
+    assert d["rules"]
+
+
 def test_human_investigation_benchmark(client):
     """The agent's honest value: effort reduction at accuracy parity, measured proxies separated
     from the modeled time estimate."""

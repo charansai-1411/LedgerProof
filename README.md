@@ -332,7 +332,7 @@ The library *proposes*; the verifier still *decides*, so a mis-cached entry is c
 
 - **GST-on-MDR reconciliation** (evidence *inside* the transaction/exception detail, not a separate "tax product"): re-derived per transaction — **18.00% effective rate, 0 discrepancies** across 2,529 taxable transactions (UPI carries no MDR, hence no GST). It is a deduction line that must reconcile, surfaced where you inspect a break — not a standalone page in the nav.
 - **Throughput:** deterministic engine ~**413,000 records/s**; end-to-end with the heuristic agent ~**143,000 records/s**. (With the Gemini agent the end-to-end rate is LLM-bound, but the agent only touches the ~1% the engine can't match, so overall throughput stays high.)
-- **Test suite:** **84 tests**, covering generator reproducibility and invariants (including financial conservation), the matching hierarchy, agent output schema, verifier accept/reject (including the anti-hallucination guard and the aggressive-proposer rejection), governor thresholds, memory verifier-gating, ground-truth isolation, and the hand-authored adversarial fixture.
+- **Test suite:** **95 tests**, covering generator reproducibility and invariants (including financial conservation), the matching hierarchy, agent output schema, verifier accept/reject (anti-hallucination guard + aggressive-proposer rejection), governor thresholds, memory verifier-gating, ground-truth isolation, the hand-authored adversarial fixture, the fault-injection harness, idempotency, and the tamper-evident audit hash-chain.
 
 ---
 
@@ -473,6 +473,54 @@ Every figure here is derived from the stated per-record constants in 6.9 (change
 
 The agent already did the search and the evidence-gathering; the human makes the *judgment* — which is the one thing we never automate. That is the difference between "AI couldn't solve it, here's an error" and "here is everything you need to decide in ten seconds."
 
+### 6.11 Reliability — what breaks, and what we do about it
+
+A payments system is judged less on the happy path than on what happens when something fails. Five deliberate robustness properties, each implemented and tested (not just asserted).
+
+**Fault injection harness** (`GET /api/faults`, the **Fault injection** page — "Break the system"). We inject eight failure classes and show each get **detected → contained → fallback → human review → audited**. The invariant is not "nothing goes wrong"; it is **no fault ever becomes a wrong financial action**:
+
+| Injected fault | Detected by | Outcome |
+|---|---|---|
+| Corrupted / truncated UTR | exact-UTR lookup finds nothing | fall back to search; resolve only if it reconciles |
+| Missing settlement (agent cites a ghost id) | schema validation + verifier `settlement_exists` | rejected → human |
+| Duplicated settlement (two credits, one payout) | verifier `no_conflict` | both held → human |
+| Wrong fee config / net mismatch | verifier re-derives net ≠ credit | blocked → human |
+| Conflicting candidate (same amount, same day) | searcher finds >1 plausible | refuses to guess → human |
+| Malformed model output (confidence 5.0, bad type) | finding schema validation | rejected before the money path → human |
+| Verifier failure | net does not reconcile | blocked → human |
+| Tool timeout | bounded retry exhausted | investigation incomplete → human |
+
+Measured: **8/8 detected and contained, 0 wrong financial actions, audit hash-chain intact on every one.**
+
+**Agent infrastructure resilience** (`ledgerproof/agent/resilience.py`). Two failure modes handled uniformly — *any infra failure degrades to "open, route to human," never to an unverified auto-resolution*:
+
+```
+tool timeout / exception  → bounded retry → still failing → INCOMPLETE → human review
+invalid model output      → schema validation → reject → no match proposed → human review
+```
+
+Validation runs *before* the verifier, so a malformed finding never reaches the money path.
+
+**Idempotency** (`ledgerproof/verifier/resolution.py`, `GET /api/idempotency`). Each decision has a deterministic `decision_id = hash(run_id, bank_txn_id, settlement_id, decision)`; resolution writes key on it. Submitting the same run twice: **pass 1 writes 37 resolutions, pass 2 writes 0** (37 duplicates suppressed) — no duplicate ledger adjustments, ever.
+
+**Tamper-evident audit** (`ledgerproof/verifier/audit.py`). Append-only is *enforced*, not just claimed: every event carries `event_hash = sha256(previous_event_hash + event)`, so altering or dropping any past event breaks every hash after it. `verify()` re-walks from genesis and pinpoints the first break — proven by a test that tampers with a past event and asserts detection. No blockchain; a hash chain is the right amount of machinery.
+
+**Rule Inspector** (`ledgerproof/verifier/rules.py`, `GET /api/rules/{id}`, the workspace's *"Why did we do this?"*). Every decision lists the exact rules that governed it — `R-021 settlement_window = T+0..T+4`, `R-044 mdr_fee = configured per-instrument`, `R-071 auto_resolve threshold = 0.95`, `R-080 false-match-is-cardinal` — each with its value and config source. The judgment is inspectable policy, not model opinion.
+
+### 6.12 Names, kept few
+
+To avoid a sprawl of concepts, the system uses exactly five names — anything else is one of these:
+
+| Layer | Name | What it is |
+|---|---|---|
+| Core | **Reconciliation Engine** | deterministic Seam-A matching (payment ↔ settlement ↔ ledger) |
+| AI | **Exception Investigator** | the tool-using agent on the hard bank-credit residue |
+| UI | **Investigation Workspace** | where you watch and audit one exception end to end |
+| Assistant | **Finance Copilot** | tool-backed queries over the reconciliation state |
+| Governance | **Resolution Governor** | the allowlist + threshold that gates auto-resolution |
+
+"Seam A / Seam B" are used only as internal shorthand in this document; the product speaks in *Payment → Ledger* and *Bank Credit → Settlement*.
+
 ## 7. Reproduce every number
 
 Plain `pip` — no build step, no `npm`, one command to a running system.
@@ -507,6 +555,9 @@ python -c "import json,sys; from ledgerproof.eval.necessity import necessity_rep
 # 6c. The single-vs-multi-agent hypothesis test over repeated seeds (Section 6.2)
 python scripts/arch_experiment.py --seeds 5 --n 2500      # writes docs/arch_experiment.json
 
+# 6d. Reliability (Section 6.11): fault injection, idempotency, tamper-evident audit
+python -c "import json,sys; from ledgerproof.eval.faults import inject_all; from ledgerproof.generator.config import REPO_ROOT; sys.stdout.reconfigure(encoding='utf-8'); print(json.dumps(inject_all(REPO_ROOT/'data'/'heldout')['summary']))"
+
 # 7. Everything, in a browser
 pip install -r requirements-api.txt
 python -m ledgerproof.api --data data/heldout        # → http://127.0.0.1:8000
@@ -540,10 +591,10 @@ A Python-only single-page control room (FastAPI + static HTML, no build step), d
 
 - **Overview** — outcome-first, the controller's screen before any engineering metric: *5,000 records → 4,737 reconciled → 52 investigated → 352 need review*, the money processed and outstanding, the trust quartet (false-match / precision / coverage / human-review), the derived manual-work-avoided figure, and "what needs your attention now." The engineering detail (routing, throughput, Copilot) sits below it.
 - **Settlement runs · Recon waterfall · Exceptions · Review queue** — the batch story, the completeness waterfall, the reason-coded exception queue (`match_status` / `resolution_type` / `exception_reason`, with delta and a suggested action), and the **decision-ready human queue** (top candidate, why-not-auto, evidence already checked, explicit options) that makes the human fast even when the system won't resolve the case.
-- **Agent workspace** — pick a bank credit and *watch the agent investigate live* (SSE): tool calls → candidate scoring to the paisa → finding → the verifier's re-derivation → the governor's decision → the decision-journey timeline → one-click **journal entry**.
-- **Scenario lab** — generate a fresh workload at any difficulty and stress-test cold; the number that must stay zero is *incorrect resolutions*.
+- **Investigation Workspace** — pick a bank credit and *watch the Exception Investigator work live* (SSE): tool calls → candidate scoring to the paisa → finding → the verifier's re-derivation → the Resolution Governor's decision → the decision-journey timeline → one-click **journal entry** → the **rule inspector** ("why did we do this?") and the **audit hash-chain** integrity badge.
+- **Scenario lab · Fault injection** — stress-test a fresh workload cold (the number that must stay zero is *incorrect resolutions*), and "break the system" to watch eight fault classes get detected, contained, and audited with **0 wrong financial actions**.
 - **Evaluation · Architecture study · Benchmark matrix · Safety guardrail · Verified Pattern Library** — the evidence pages behind every claim in Section 6.
-- **What-if simulator · Governor** — tune the policy and see the before/after and its safety cost before committing; controls are finance-team owned.
+- **What-if simulator · Resolution Governor** — tune the policy and see the before/after and its safety cost before committing; controls are finance-team owned.
 - **Data** — reconcile a bundled sample or upload your own five source CSVs.
 
 *Why FastAPI + static HTML and not React?* Because the point of this project is the reconciliation engine, and a judge should reach it with one `pip install` and one command — not a `node_modules` install and a build. Frictionless-to-run beats fashionable, when the substance is the backend.

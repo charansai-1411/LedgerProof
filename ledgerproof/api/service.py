@@ -362,6 +362,11 @@ class ReconService:
             {"node": "AUDIT", "detail": "complete", "state": "ok"},
         ]
 
+        from ..verifier.audit import AuditChain
+        from ..verifier.rules import rules_for_decision
+        _rec = type("R", (), {"finding": finding, "governor": g})()
+        _rules = rules_for_decision(_rec, self.policy, FeeConfig.load())
+
         ts = self._ts_series()
         audit = [{"t": ts(0), "event": "Deterministic match failed"},
                  {"t": ts(1), "event": "Agent investigation started"},
@@ -372,6 +377,9 @@ class ReconService:
                   {"t": ts(5), "event": "Verifier " + ("PASSED" if v.verified else "did not verify")},
                   {"t": ts(6), "event": "Governor " + ("AUTO-RESOLVED" if g.decision == DECISION_AUTO else "BLOCKED")},
                   {"t": ts(6), "event": "Routed to " + ("AUTO-RESOLUTION" if g.decision == DECISION_AUTO else "HUMAN REVIEW")}]
+        _chain = AuditChain()
+        for _a in audit:
+            _chain.append(actor="system", event={"event": _a["event"]}, timestamp=_a["t"])
 
         from ..engine import reasons as R
         if sid is None:
@@ -402,6 +410,7 @@ class ReconService:
             "governor": {"decision": g.decision, "reason": g.reason,
                          "confidence": round(finding.confidence, 3), "threshold": self.policy.min_confidence},
             "timeline": timeline, "audit": audit,
+            "rules": _rules, "audit_chain": _chain.to_list(), "audit_integrity": _chain.verify(),
         }
 
     def _payment_detail(self, pid: str) -> dict:
@@ -605,6 +614,66 @@ class ReconService:
     def human_benchmark(self) -> dict:
         from ..eval.human_bench import human_investigation_report
         return human_investigation_report(self.data_dir)
+
+    # ---- robustness: fault injection, rule inspector, idempotency (critiques 14-18) ----
+    def faults(self) -> dict:
+        from ..eval.faults import inject_all
+        return inject_all(self.data_dir)
+
+    def fault(self, kind: str) -> dict:
+        from ..eval.faults import inject
+        return inject(kind, self.data_dir)
+
+    def rules_catalog(self) -> list[dict]:
+        from ..verifier.rules import rule_catalog
+        return rule_catalog(self.policy, FeeConfig.load())
+
+    def rules_for_credit(self, bid: str) -> dict:
+        """The exact policy rules that governed one credit's decision (Rule Inspector)."""
+        from collections import Counter
+
+        from ..verifier.governor import Governor
+        from ..verifier.rules import rules_for_decision
+        from ..verifier.verifier import SeamBVerifier
+        tools = SeamBToolbox(load_seam_b(self.data_dir))
+        if bid not in tools._credits:  # noqa: SLF001
+            return {"available": False}
+        f = HeuristicAgentModel().investigate(bid, tools)
+        v = SeamBVerifier(self.policy.min_drift_days, self.policy.max_drift_days).verify(
+            f, tools, Counter({f.matched_settlement_id: 1} if f.matched_settlement_id else {}))
+        rec = type("R", (), {"finding": f, "governor": Governor(self.policy).decide(f, v)})()
+        return {"available": True, "id": bid, "decision": rec.governor.decision,
+                "rules": rules_for_decision(rec, self.policy, FeeConfig.load())}
+
+    def idempotency_check(self) -> dict:
+        """Submit the SAME run twice; prove no duplicate resolutions are written (critique 16)."""
+        import json as _json
+
+        from ..verifier.resolution import ResolutionStore, decision_id_for, run_id_for
+        seed = None
+        mp = self.data_dir / "manifest.json"
+        if mp.exists():
+            seed = _json.loads(mp.read_text(encoding="utf-8")).get("seed")
+        rid = run_id_for(seed, self.data_dir.name)
+        bench = GovernorConfig(enabled=True, min_confidence=0.95, allowlist=["bank_settlement_match"],
+                               min_drift_days=self.policy.min_drift_days, max_drift_days=self.policy.max_drift_days)
+        store = ResolutionStore()
+        first = second = 0
+        for pass_no in (1, 2):
+            for r in run_pipeline(self.data_dir, self.model, bench):
+                if r.governor.decision != DECISION_AUTO:
+                    continue
+                did = decision_id_for(rid, r.finding.bank_txn_id, r.finding.matched_settlement_id, r.governor.decision)
+                wrote = store.apply(did, {"settlement": r.finding.matched_settlement_id})
+                if pass_no == 1 and wrote:
+                    first += 1
+                elif pass_no == 2 and wrote:
+                    second += 1
+        return {"run_id": rid, "resolutions_written_pass1": first,
+                "resolutions_written_pass2": second, "duplicates_suppressed": store.duplicates_suppressed,
+                "total_stored": len(store), "idempotent": second == 0,
+                "note": "Same run submitted twice; the second pass writes 0 new resolutions because each "
+                        "decision_id is already in the store — no duplicate ledger adjustments."}
 
     def outcomes(self) -> dict:
         """The outcome-first, CFO-facing view: what cleared, what remains, what needs attention, the

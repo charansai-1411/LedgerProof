@@ -116,3 +116,17 @@ def test_audit_record_shape(run_dir):
     audit = records[0].to_audit()
     for key in ("verification", "governor_decision", "policy", "reversible"):
         assert key in audit
+
+
+def test_audit_hash_chain_detects_tampering():
+    """The append-only claim is enforced: altering any past event breaks the hash chain."""
+    from ledgerproof.verifier.audit import AuditChain
+    c = AuditChain()
+    c.append("engine", {"event": "match failed"}, "10:00:00")
+    c.append("agent", {"event": "proposed setl_x"}, "10:00:01")
+    c.append("verifier", {"event": "verified"}, "10:00:02")
+    assert c.verify()["intact"] is True
+    # tamper with a past event's payload
+    c.events[1].event = {"event": "proposed setl_FRAUD"}
+    v = c.verify()
+    assert v["intact"] is False and v["broken_at"] == 1

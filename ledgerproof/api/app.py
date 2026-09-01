@@ -153,6 +153,32 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     def human_queue() -> list[dict]:
         return svc().human_queue()
 
+    @app.get("/api/faults")
+    def faults() -> dict:
+        return svc().faults()
+
+    @app.get("/api/fault/{kind}")
+    def fault(kind: str) -> dict:
+        try:
+            return svc().fault(kind)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/api/rules")
+    def rules() -> list[dict]:
+        return svc().rules_catalog()
+
+    @app.get("/api/rules/{bid}")
+    def rules_for(bid: str) -> dict:
+        r = svc().rules_for_credit(bid)
+        if not r.get("available"):
+            raise HTTPException(status_code=404, detail=f"no credit '{bid}'")
+        return r
+
+    @app.get("/api/idempotency")
+    def idempotency() -> dict:
+        return svc().idempotency_check()
+
     @app.get("/api/matrix")
     def matrix() -> dict:
         path = REPO_ROOT / "docs" / "results_matrix.json"
