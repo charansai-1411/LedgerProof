@@ -12,6 +12,11 @@
 
 </div>
 
+<p align="center">
+  <img src="docs/images/overview.png" alt="LedgerProof overview — outcome-first control room: 5,000 records → 4,737 reconciled → 52 investigated → 352 need review, ₹12.54 Cr processed, 0 false matches" width="100%">
+  <br><em>The control room, outcome-first: what cleared, what remains, the trust quartet (0 false-match · 100% auto-resolve precision · 84% coverage), and the manual work avoided — before any engineering metric.</em>
+</p>
+
 ---
 
 ## Abstract
@@ -121,6 +126,11 @@ Zero. The LLM never touches the arithmetic. It is an investigator, never an acco
 ```
 
 Each box is a decision. Here is why each is shaped the way it is, and why the alternatives lose.
+
+<p align="center">
+  <img src="docs/images/workspace.png" alt="Investigation Workspace — decision journey, source records, AI investigation trace, verification checks, governor, rule inspector, and audit hash-chain for one bank credit" width="100%">
+  <br><em>The Investigation Workspace makes every box above visible for one exception: the decision journey (left), the source records and their deduction waterfall, the agent's tool-by-tool investigation, and the verifier's re-derivation + governor decision (right) — with the rule inspector ("why did we do this?") and a tamper-evident audit hash-chain.</em>
+</p>
 
 ### 4.1 The deterministic engine — *why re-derive, not tolerate*
 
@@ -331,7 +341,7 @@ The library *proposes*; the verifier still *decides*, so a mis-cached entry is c
 ### 6.6 Supporting numbers
 
 - **GST-on-MDR reconciliation** (evidence *inside* the transaction/exception detail, not a separate "tax product"): re-derived per transaction — **18.00% effective rate, 0 discrepancies** across 2,529 taxable transactions (UPI carries no MDR, hence no GST). It is a deduction line that must reconcile, surfaced where you inspect a break — not a standalone page in the nav.
-- **Throughput:** deterministic engine ~**413,000 records/s**; end-to-end with the heuristic agent ~**143,000 records/s**. (With the Gemini agent the end-to-end rate is LLM-bound, but the agent only touches the ~1% the engine can't match, so overall throughput stays high.)
+- **Throughput** (all data-processing, not LLM-bound): the deterministic engine reconciles ~**413,000 records/s** and the engine+heuristic-agent stage runs ~**143,000 records/s**. The dashboard's live "Throughput" KPI is lower (~13,000/s) because it times the *whole graded report* — engine + agent + the pattern-library pass + grading against ground truth — not just the reconciliation stage. (With the Gemini agent the end-to-end rate is LLM-bound, but the agent only touches the ~1% the engine can't match.)
 - **Test suite:** **95 tests**, covering generator reproducibility and invariants (including financial conservation), the matching hierarchy, agent output schema, verifier accept/reject (anti-hallucination guard + aggressive-proposer rejection), governor thresholds, memory verifier-gating, ground-truth isolation, the hand-authored adversarial fixture, the fault-injection harness, idempotency, and the tamper-evident audit hash-chain.
 
 ---
@@ -491,6 +501,11 @@ A payments system is judged less on the happy path than on what happens when som
 | Tool timeout | bounded retry exhausted | investigation incomplete → human |
 
 Measured: **8/8 detected and contained, 0 wrong financial actions, audit hash-chain intact on every one.**
+
+<p align="center">
+  <img src="docs/images/fault_injection.png" alt="Fault injection page — eight injected failures each shown detected, contained, and routed to a human, with 0 wrong financial actions and an intact audit hash-chain" width="100%">
+  <br><em>"Break the system": each injected fault traced FAILURE → DETECTED → CONTAINED → FALLBACK → HUMAN REVIEW → AUDIT, with 0 wrong financial actions and the hash-chain intact on every one.</em>
+</p>
 
 **Agent infrastructure resilience** (`ledgerproof/agent/resilience.py`). Two failure modes handled uniformly — *any infra failure degrades to "open, route to human," never to an unverified auto-resolution*:
 
