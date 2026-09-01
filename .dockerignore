@@ -1,0 +1,14 @@
+# keep the build context small and reproducible
+.git
+.gitignore
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+data/            # regenerated at build time from a seed
+docs/images/     # README screenshots — not needed at runtime
+tests/           # not needed to serve
+.venv/
+venv/

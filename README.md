@@ -591,6 +591,10 @@ python -c "import json,sys; from ledgerproof.eval.faults import inject_all; from
 pip install -r requirements-api.txt
 python -m ledgerproof.api --data data/heldout        # → http://127.0.0.1:8000
 
+# 8. Deploy to Google Cloud Run (see docs/DEPLOY.md) — Cloud Build builds the Dockerfile from source
+gcloud run deploy ledgerproof --source . --region asia-south1 --allow-unauthenticated \
+    --memory 1Gi --cpu 1 --timeout 300 --port 8080
+
 # Tests
 python -m pytest
 ```
@@ -650,7 +654,7 @@ Two capabilities reuse the same engine and reconciled state rather than bolting 
 - **The genuinely AI-requiring class we did not manufacture.** Our hard cases are *key-mess* (garbled/missing UTR, date drift), which deterministic search solves. The class that would truly need open-ended investigation is *amount-relationship* mess — a bank credit that equals a settlement's net plus an un-netted refund minus a reserve, with no exact single-settlement match. We chose not to inject it solely to justify the agent; naming it honestly is better than gaming the benchmark.
 - **Human-queue precision is 86.5%, not 100%,** because the governor holds 7 correctly-matched hero credits below the 0.95 confidence bar for human review. This is controlled autonomy behaving correctly — escalating when less certain — reported rather than hidden.
 - **Reserve *release* is modeled structurally but not implemented** (it's a cross-cycle temporal dependency); the withheld reserve is emitted as a labeled line with a `reserve_release` hook, so the stretch slots in without a refactor.
-- **Cloud deployment is the one open item.** Everything runs locally, reproducibly, today; the Cloud Run / Vertex / Secret Manager deployment is the remaining bonus.
+- **Cloud deployment is containerized and one command away.** A `Dockerfile` builds a self-contained Cloud Run image (datasets generated at build time from a seed), and [`docs/DEPLOY.md`](docs/DEPLOY.md) has the single `gcloud run deploy --source .` command plus the optional Vertex/Gemini wiring. The only step not scripted is running it against a billed GCP project.
 - **Fee rates are plausible, configurable examples** in `configs/fees.yaml` — the *shape* is real Indian-payments structure; they are not represented as official Razorpay pricing.
 
 ---

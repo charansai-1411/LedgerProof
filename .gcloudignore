@@ -1,0 +1,13 @@
+# What Cloud Build uploads as the build context. Keep it lean; the Dockerfile regenerates data/.
+.git/
+.gitignore
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+data/            # regenerated at build time from a seed
+docs/images/     # README screenshots — not needed to build/run
+tests/
+.venv/
+venv/
