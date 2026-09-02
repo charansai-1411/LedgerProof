@@ -101,6 +101,14 @@ Zero. The LLM never touches the arithmetic. It is an investigator, never an acco
 
 ## 4. The architecture
 
+<p align="center">
+  <img src="docs/images/architecture.png" alt="Deduction Verification Architecture — three financial sources feed a deterministic engine (Seam A: re-derive every deduction from policy, prove net to the paisa); exceptions go to a tool-using Exception Investigator (Seam B: search candidate settlements + gather evidence) which returns a structured finding; a deterministic verifier re-derives the one proposed match in pure code (never calls the LLM); the governor auto-resolves only if enabled AND allowlisted AND confident, else routes to human review; every step lands in an append-only audit." width="100%">
+  <br><em>Financial data → deterministic engine → (matched: done / exception: investigate) → AI Exception Investigator → deterministic verifier → governor → auto-resolve or human review. Every step appends to a tamper-evident audit.</em>
+</p>
+
+<details>
+<summary>Text version of the diagram</summary>
+
 ```
                          Three financial sources
                                    │
@@ -130,6 +138,8 @@ Zero. The LLM never touches the arithmetic. It is an investigator, never an acco
                             ▼               ▼
                      Auto-resolve      Human review        every step → append-only audit
 ```
+
+</details>
 
 Each box is a decision. Here is why each is shaped the way it is, and why the alternatives lose.
 
@@ -211,6 +221,24 @@ Corrupted UTRs, a settlement id that doesn't exist, two credits claiming one pay
   <img src="docs/images/fault_injection.png" alt="Fault injection page — eight injected failures each detected, contained, and routed to a human, with 0 wrong financial actions and an intact audit hash-chain" width="100%">
   <br><em>"Break the system": eight fault classes injected, each traced FAILURE → DETECTED → CONTAINED → FALLBACK → HUMAN REVIEW → AUDIT — 0 wrong financial actions, hash-chain intact on every one.</em>
 </p>
+
+### 4.7 Tech stack
+
+Chosen for auditability and one-command reproducibility — minimal dependencies on purpose.
+
+| Layer | Choice | Why |
+|---|---|---|
+| Language | **Python 3.11** | integer **paise** everywhere — never a float for money |
+| Core (engine · agent · verifier · governor · generator) | **pure Python**, one runtime dep (**PyYAML**) | installs in seconds; the trust anchor has almost no surface area |
+| API + dashboard | **FastAPI + uvicorn**, single static **HTML/CSS/vanilla-JS** page | no npm, no build step, no front-end framework — the point is the engine |
+| Working store | **SQLite** per dataset | sources loaded here; **ground truth kept in a separate file, never in the DB** |
+| Policy as config | **YAML** (`fees.yaml`, `governor.yaml`) | fees/thresholds are policy the generator *and* engine read — not hardcode |
+| AI (optional) | **Google Gemini via Vertex AI** (`google-genai`), behind a swappable `AgentModel` | the deterministic heuristic is the default; the LLM is a governed drop-in, lazily imported |
+| Tests | **pytest** (95) | reproducibility, invariants, verifier accept/reject, faults, idempotency, audit chain |
+| Deploy | **Docker → Google Cloud Run** (asia-south1), built from source by **Cloud Build** | a long-lived server (SSE + per-request compute), not serverless |
+| Repo / CI-friendly | **git / GitHub**; datasets gitignored, regenerated from a seed | nothing generated is committed; everything is reproducible |
+
+The whole thing runs with `pip install -r requirements.txt` (core) or `+ requirements-api.txt` (dashboard) — no other toolchain.
 
 ---
 
