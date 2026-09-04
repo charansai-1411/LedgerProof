@@ -10,9 +10,9 @@
 
 `94% matched by rule` · `hard residue recovered by deterministic search + verify` · `0 false matches across 100,000-payment runs` · `~67% less exception-investigation time at 100% auto-resolution precision` · `8/8 injected faults contained → 0 wrong financial actions`
 
-### ▶ Live demo — [ledgerproof-1020004477951.asia-south1.run.app](https://ledgerproof-1020004477951.asia-south1.run.app)
+### ▶ [Live demo](https://ledgerproof-1020004477951.asia-south1.run.app) &nbsp;·&nbsp; 🎬 [5-min pitch video](https://drive.google.com/file/d/1HoCSNE4raZB-c8i1QeczKrzny59_zwR3/view?usp=sharing)
 
-*Deployed on Google Cloud Run (Mumbai). Open the dashboard, switch datasets, or press "Break the system" on the Fault injection page.*
+*Live demo on Google Cloud Run (Mumbai) — open the dashboard, switch datasets, or press "Break the system" on the Fault injection page. The video walks the whole system, and the night it almost fell apart, in five minutes.*
 
 </div>
 
